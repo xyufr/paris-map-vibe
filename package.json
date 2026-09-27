@@ -1,0 +1,13 @@
+{
+  "name": "paris-transit-map",
+  "private": true,
+  "description": "Interactive Île-de-France transit map from the IDFM PDF plan, deployed as a Cloudflare Worker with static assets.",
+  "scripts": {
+    "export": "python3 resources/export_static.py",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

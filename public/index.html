@@ -1,55 +1,95 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Paris Metro D3 Map</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260517-6">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="description" content="Interactive Île-de-France transit map (Metro, RER, Transilien, Tram) drawn from the official PDF plan, with station search and route planning.">
+    <meta name="theme-color" content="#16233b">
+    <title>Paris Transit Map</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23e3051c'/%3E%3Ctext x='32' y='44' font-family='Arial' font-weight='700' font-size='34' text-anchor='middle' fill='white'%3EM%3C/text%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,500;1,600&display=swap">
+    <link rel="stylesheet" href="/static/styles.css?v=20260927-12">
   </head>
   <body>
-    <main class="app-shell">
-      <aside class="rail">
-        <div class="brand">
-          <span class="mark">M</span>
-          <div>
-            <h1>Paris Metro</h1>
-            <p>PDF coordinates from MySQL</p>
+    <main class="app-shell" id="app">
+      <aside class="rail" id="rail" aria-label="Controls">
+        <header class="brand">
+          <div class="brand-text">
+            <h1><span class="title-main">Paris</span> <em class="title-accent" data-i18n="titleAccent">en transports</em></h1>
+            <p data-i18n="subtitle">Île-de-France · PDF plan 2026</p>
+            <div class="segmented lang-switch" role="group" aria-label="Language / Langue / 语言">
+              <button type="button" data-lang="en">EN</button>
+              <button type="button" data-lang="fr">FR</button>
+              <button type="button" data-lang="zh">中文</button>
+            </div>
           </div>
+          <button id="themeToggle" class="icon-button" type="button" data-i18n-title="theme" title="Theme" aria-label="Toggle theme">◐</button>
+          <button id="railToggle" class="icon-button rail-toggle" type="button" aria-label="Collapse panel" aria-expanded="true">▾</button>
+        </header>
+
+        <div class="rail-body">
+          <nav class="tabs" role="tablist">
+            <button class="tab is-active" role="tab" data-tab="explore" aria-selected="true" data-i18n="tabExplore">Explore</button>
+            <button class="tab" role="tab" data-tab="route" aria-selected="false" data-i18n="tabRoute">Route</button>
+            <button class="tab" role="tab" data-tab="lines" aria-selected="false" data-i18n="tabLines">Lines</button>
+          </nav>
+
+          <section class="tab-panel is-active" data-panel="explore" role="tabpanel">
+            <div class="field search-field">
+              <input id="stationSearch" type="search" autocomplete="off" spellcheck="false" data-i18n-placeholder="searchPlaceholder" placeholder="Search a station  ( / )" aria-label="Search a station">
+              <div class="suggestions" role="listbox" hidden></div>
+            </div>
+            <div id="details" class="details" aria-live="polite"></div>
+            <button id="resetAll" class="reset-button" type="button">↺ <span data-i18n="resetAll">Reset map</span></button>
+          </section>
+
+          <section class="tab-panel" data-panel="route" role="tabpanel" hidden>
+            <div class="route-form">
+              <div class="field route-field">
+                <span class="route-dot from" aria-hidden="true"></span>
+                <input id="routeFrom" type="search" autocomplete="off" spellcheck="false" data-i18n-placeholder="from" placeholder="From" aria-label="From">
+                <div class="suggestions" role="listbox" hidden></div>
+              </div>
+              <button id="routeSwap" class="icon-button swap" type="button" data-i18n-title="swap" title="Swap" aria-label="Swap">⇅</button>
+              <div class="field route-field">
+                <span class="route-dot to" aria-hidden="true"></span>
+                <input id="routeTo" type="search" autocomplete="off" spellcheck="false" data-i18n-placeholder="to" placeholder="To" aria-label="To">
+                <div class="suggestions" role="listbox" hidden></div>
+              </div>
+              <label class="check"><input id="avoidTrain" type="checkbox"> <span data-i18n="metroOnly">Metro &amp; tram only</span></label>
+            </div>
+            <div id="routeResult" class="route-result" aria-live="polite"></div>
+            <button id="resetRoute" class="reset-button" type="button">↺ <span data-i18n="resetAll">Reset map</span></button>
+          </section>
+
+          <section class="tab-panel" data-panel="lines" role="tabpanel" hidden>
+            <div class="lines-head">
+              <span class="hint" data-i18n="linesHint">Click to focus a line · Ctrl/⌘-click to combine</span>
+              <button id="clearLines" class="text-button" type="button" data-i18n="showAll">Show all</button>
+            </div>
+            <div id="lineFilters" class="line-filters"></div>
+            <label class="check"><input id="showFuture" type="checkbox"> <span data-i18n="showFuture">Show lines under construction</span></label>
+          </section>
         </div>
-
-        <label class="search">
-          <span>Search</span>
-          <input id="stationSearch" type="search" autocomplete="off" placeholder="Station name">
-          <div id="stationSuggestions" class="station-suggestions" role="listbox" hidden></div>
-        </label>
-
-        <section class="filters" aria-label="Line filters">
-          <div class="filter-head">
-            <span>Lines</span>
-            <button id="clearSelection" type="button" title="Show all lines">All</button>
-          </div>
-          <div id="lineFilters" class="line-filters"></div>
-        </section>
-
-        <section class="details" aria-live="polite">
-          <div id="detailsTitle" class="details-title">Select a station</div>
-          <div id="detailsBody" class="details-body">Click a station dot or line badge to inspect the network.</div>
-        </section>
       </aside>
 
-      <section class="map-stage">
-        <div class="toolbar">
-          <button id="zoomOut" type="button" title="Zoom out">−</button>
-          <button id="zoomReset" type="button" title="Reset view">⌂</button>
-          <button id="zoomIn" type="button" title="Zoom in">+</button>
-          <span id="stats" class="stats">Loading…</span>
+      <section class="map-stage" aria-label="Map">
+        <svg id="metroMap" role="img" aria-label="Paris transit map"></svg>
+        <div class="map-controls">
+          <button id="zoomIn" type="button" class="map-button" data-i18n-title="zoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+          <button id="zoomOut" type="button" class="map-button" data-i18n-title="zoomOut" title="Zoom out" aria-label="Zoom out">−</button>
+          <button id="zoomReset" type="button" class="map-button" data-i18n-title="resetView" title="Reset view" aria-label="Reset view">⌂</button>
+          <button id="shareLink" type="button" class="map-button" data-i18n-title="share" title="Copy link" aria-label="Copy link">⤴</button>
         </div>
-        <svg id="metroMap" role="img" aria-label="Paris metro map"></svg>
+        <div id="status" class="status-chip">Loading…</div>
+        <div id="toast" class="toast" role="status" hidden></div>
         <div id="tooltip" class="tooltip" hidden></div>
       </section>
     </main>
 
     <script src="/vendor/d3.min.js"></script>
-    <script src="/static/app.js?v=20260517-6"></script>
+    <script src="/static/app.js?v=20260927-12"></script>
   </body>
 </html>

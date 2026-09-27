@@ -1,0 +1,383 @@
+{
+  "_comment": "Manual decisions for reconcile_network.py, each verified against a crop of paris_map.pdf. Stops are targeted by their PDF label on a line ('label') or by PDF point ('point', 4pt tolerance).",
+  "stop_station": [
+    {
+      "line": "METRO:4",
+      "point": [
+        2093.0,
+        1393.8
+      ],
+      "station_id": 755,
+      "why": "M4 ring at Chatelet; the 1374 hit is the M11 terminus circle"
+    },
+    {
+      "line": "METRO:7",
+      "label": "Pierre et Marie Curie",
+      "station_id": 998
+    },
+    {
+      "line": "METRO:7",
+      "point": [
+        2448.2,
+        1876.4
+      ],
+      "station_id": 578,
+      "why": "Mairie d'Ivry terminus; DB coordinate was on the line badge"
+    },
+    {
+      "line": "METRO:11",
+      "label": "Porte des Lilas",
+      "station_id": 913
+    },
+    {
+      "line": "METRO:11",
+      "label": "Télégraphe",
+      "station_id": 684,
+      "why": "DB Telegraphe coordinate sat on Porte des Lilas"
+    },
+    {
+      "line": "METRO:12",
+      "point": [
+        1904.1,
+        1202.7
+      ],
+      "station_id": 490
+    },
+    {
+      "line": "METRO:13",
+      "label": "Didot",
+      "station_id": 476,
+      "why": "M13 Porte de Vanves ring; nearest label is the T3a Didot label"
+    },
+    {
+      "line": "METRO:14",
+      "label": "Aéroport d’Orly",
+      "name": "Aéroport d’Orly",
+      "why": "M14 terminus, separate from the T7/Orlyval Aeroport d'Orly stop"
+    },
+    {
+      "line": "METRO:14",
+      "label": "Thiais – Orly (Pont de Rungis)",
+      "name": "Thiais – Orly"
+    },
+    {
+      "line": "RER:C",
+      "label": "Bir-Hakeim",
+      "station_id": 843,
+      "why": "RER C Champ de Mars - Tour Eiffel"
+    },
+    {
+      "line": "RER:C",
+      "label": "Saint-Ouen l’Aumône Quartier de l’Église",
+      "station_id": 422,
+      "why": "terminus dot inside the Pontoise capsule"
+    },
+    {
+      "line": "TRAIN:H",
+      "label": "Saint-Ouen l’Aumône Quartier de l’Église",
+      "station_id": 422,
+      "why": "dot inside the Pontoise capsule"
+    },
+    {
+      "line": "TRAIN:H",
+      "point": [
+        2008.6,
+        169.6
+      ],
+      "station_id": 378,
+      "why": "second H branch stop inside the Persan-Beaumont capsule"
+    },
+    {
+      "line": "RER:D",
+      "point": [
+        2091.2,
+        843.0
+      ],
+      "station_id": 289
+    },
+    {
+      "line": "RER:D",
+      "point": [
+        2859.6,
+        2441.6
+      ],
+      "station_id": 648,
+      "why": "second D branch stop inside the Corbeil-Essonnes capsule"
+    },
+    {
+      "line": "RER:D",
+      "label": "Évry",
+      "station_id": 249
+    },
+    {
+      "line": "RER:E",
+      "label": "La Défense",
+      "station_id": 621
+    },
+    {
+      "line": "TRAIN:N",
+      "label": "Sèvres Rive Gauche",
+      "station_id": 948
+    },
+    {
+      "line": "TRAIN:P",
+      "point": [
+        3525.4,
+        641.8
+      ],
+      "station_id": 888
+    },
+    {
+      "line": "TRAIN:P",
+      "point": [
+        3551.5,
+        625.3
+      ],
+      "station_id": 196
+    },
+    {
+      "line": "TRAM:1",
+      "label": "Hôtel de Ville de Bobigny",
+      "station_id": 681
+    },
+    {
+      "line": "TRAM:3A",
+      "label": "Cité Universitaire",
+      "station_id": 310
+    },
+    {
+      "line": "TRAM:3A",
+      "label": "Montsouris",
+      "station_id": 701
+    },
+    {
+      "line": "TRAM:3A",
+      "label": "Georges Brassens",
+      "station_id": 793
+    },
+    {
+      "line": "TRAM:3A",
+      "label": "Porte de Versailles",
+      "station_id": 961
+    },
+    {
+      "line": "TRAM:3B",
+      "label": "Porte des Lilas",
+      "station_id": 913
+    },
+    {
+      "line": "TRAM:3B",
+      "label": "Adrienne Bolland",
+      "station_id": 861
+    },
+    {
+      "line": "TRAM:10",
+      "label": "La Vallée",
+      "station_id": 427
+    },
+    {
+      "line": "TRAM:14",
+      "label": "Crécy la-Chapelle",
+      "station_id": 667
+    },
+    {
+      "line": "TRAIN:H",
+      "label": "Méry-sur-Oise",
+      "station_id": 870
+    },
+    {
+      "line": "METRO:14",
+      "label": "Chevilly-Larue",
+      "station_id": 460,
+      "name": "Chevilly-Larue",
+      "why": "shared M14/T7 stop labelled Chevilly-Larue on the PDF (DB row was Porte de Thiais)"
+    },
+    {
+      "line": "TRAM:7",
+      "label": "Chevilly-Larue",
+      "station_id": 460,
+      "name": "Chevilly-Larue"
+    },
+    {
+      "line": "TRAM:4",
+      "point": [
+        3000.0,
+        885.0
+      ],
+      "station_id": 506,
+      "why": "DB swapped Leon Blum / Republique - Marx Dormoy"
+    },
+    {
+      "line": "TRAM:4",
+      "point": [
+        3033.0,
+        885.0
+      ],
+      "station_id": 287
+    },
+    {
+      "line": "TRAM:8",
+      "point": [
+        2099.0,
+        534.0
+      ],
+      "station_id": 371,
+      "why": "Villetaneuse Universite terminus of the T8 branch"
+    },
+    {
+      "line": "TRAM:8",
+      "point": [
+        2099.0,
+        552.0
+      ],
+      "station_id": 191
+    },
+    {
+      "line": "TRAM:6",
+      "label": "Châtillon Montrouge",
+      "station_id": 754
+    },
+    {
+      "line": "RER:B",
+      "point": [
+        2914.5,
+        716.7
+      ],
+      "station_id": 243,
+      "why": "Aulnay-sous-Bois capsule; nearest label is Le Blanc Mesnil"
+    }
+  ],
+  "drop_stops": [
+    {
+      "line": "METRO:4",
+      "point": [
+        2093.0,
+        1374.2
+      ],
+      "why": "M11 terminus circle crossed by M4"
+    },
+    {
+      "line": "METRO:7",
+      "point": [
+        2171.8,
+        1161.2
+      ],
+      "why": "Gare de l'Est capsule edge, duplicate"
+    },
+    {
+      "line": "RER:E",
+      "region": [
+        500,
+        900,
+        1380,
+        1500
+      ],
+      "why": "RER E west extension is dashed (not yet open) on the PDF"
+    }
+  ],
+  "add_stops": [
+    {
+      "line": "METRO:14",
+      "point": [
+        2222.7,
+        1768.7
+      ],
+      "station_id": 2,
+      "why": "Maison Blanche capsule"
+    },
+    {
+      "line": "RER:E",
+      "point": [
+        2148.1,
+        1112.4
+      ],
+      "station_id": 328,
+      "why": "Magenta, grey hub without marker"
+    },
+    {
+      "line": "RER:E",
+      "point": [
+        1941.9,
+        1190.8
+      ],
+      "station_id": 183,
+      "why": "Haussmann Saint-Lazare, grey hub without marker"
+    },
+    {
+      "line": "TRAM:10",
+      "point": [
+        2086.4,
+        2141.0
+      ],
+      "station_id": 190,
+      "why": "La Croix de Berny capsule"
+    },
+    {
+      "line": "TRAM:7",
+      "point": [
+        2328.0,
+        2305.0
+      ],
+      "station_id": 524,
+      "why": "T7 Aeroport d'Orly capsule shared with Orlyval"
+    }
+  ],
+  "drop_members": [
+    {
+      "line": "METRO:12",
+      "station_id": 204,
+      "why": "M12 stops at Saint-Lazare (490)"
+    },
+    {
+      "line": "METRO:5",
+      "station_id": 161,
+      "why": "La Chapelle is on M2; M5 has no stop there"
+    }
+  ],
+  "drop_lines": [
+    {
+      "line": "TRAIN:GL",
+      "why": "not drawn on the PDF (off-map regional destinations)"
+    },
+    {
+      "line": "NAVETTE:FUN",
+      "why": "Funiculaire only appears as a place label, no line geometry"
+    }
+  ],
+  "connect": [
+    {
+      "line": "TRAIN:P",
+      "a": 860,
+      "b": 1005,
+      "why": "P runs Gare de l'Est - Chelles-Gournay without intermediate stops; the PDF trunk is drawn along RER E"
+    }
+  ],
+  "station_names": {
+    "52": "Louvre – Rivoli",
+    "55": "Saint-Michel",
+    "88": "Porte d’Asnières – Marguerite Long",
+    "191": "Pablo Neruda",
+    "243": "Aulnay-sous-Bois",
+    "274": "Les Courtilles",
+    "289": "Stade de France – Saint-Denis",
+    "371": "Villetaneuse Université",
+    "422": "Pontoise",
+    "476": "Porte de Vanves",
+    "490": "Saint-Lazare",
+    "506": "Léon Blum",
+    "783": "Lycée Henri Sellier",
+    "608": "Théâtre Gérard Philipe",
+    "733": "Bois Briard",
+    "830": "Traité de Rome",
+    "769": "Palais Royal – Musée du Louvre",
+    "786": "Plaisance",
+    "808": "Saint-Germain-des-Prés",
+    "843": "Champ de Mars – Tour Eiffel",
+    "868": "Neuilly – Porte Maillot",
+    "878": "Gare de Saint-Denis",
+    "911": "Jean Rostand",
+    "918": "Porte d’Orléans",
+    "247": "Pont de Rungis – Aéroport d’Orly",
+    "_why": "display names where the nearest PDF label belonged to a neighbouring stop"
+  }
+}

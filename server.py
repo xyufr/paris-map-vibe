@@ -4,6 +4,8 @@
 Serves a D3/SVG map and a small JSON API backed by the local MySQL database.
 The frontend follows the d3-metro idea: D3 renders a zoomable SVG transit
 network from station nodes, route paths, and line membership data.
+`resources/export_static.py` writes the same payload to public/data/map.json
+for the Cloudflare Worker deployment.
 """
 
 from __future__ import annotations
@@ -18,9 +20,12 @@ from urllib.parse import urlparse
 
 import pymysql
 
+from network_graph import line_edges, locate_stops
+
 
 ROOT = Path(__file__).resolve().parent
 PUBLIC_DIR = ROOT / "public"
+FUTURE_PATH = ROOT / "resources" / "future_lines.json"
 
 PDF_WIDTH = 3600.0
 PDF_HEIGHT = 2777.95
@@ -33,76 +38,38 @@ DB_CONFIG = {
     "charset": "utf8mb4",
 }
 
-LINE_COLORS = {
-    "METRO:1": "#ffcd00",
-    "METRO:2": "#003ca6",
-    "METRO:3": "#837902",
-    "METRO:3b": "#6ec4e8",
-    "METRO:4": "#cf009e",
-    "METRO:5": "#ff7e2e",
-    "METRO:6": "#6eca97",
-    "METRO:7": "#fa9aba",
-    "METRO:7b": "#6eca97",
-    "METRO:8": "#e19bdf",
-    "METRO:9": "#b6bd00",
-    "METRO:10": "#c9910d",
-    "METRO:11": "#704b1c",
-    "METRO:12": "#007852",
-    "METRO:13": "#6ec4e8",
-    "METRO:14": "#62259d",
-    "RER:A": "#e2231a",
-    "RER:B": "#4b92db",
-    "RER:C": "#f6c400",
-    "RER:D": "#00a88f",
-    "RER:E": "#c04191",
-    "TRAM:1": "#0055a4",
-    "TRAM:2": "#c6a500",
-    "TRAM:3A": "#f28e1c",
-    "TRAM:3B": "#00a88f",
-    "TRAM:4": "#6f263d",
-    "TRAM:5": "#7b6469",
-    "TRAM:6": "#e4007c",
-    "TRAM:7": "#6eca97",
-    "TRAM:8": "#a05eb5",
-    "TRAM:9": "#b6bd00",
-    "TRAM:10": "#00a3e0",
-    "TRAM:11": "#8dc63f",
-    "TRAM:12": "#00a3e0",
-    "TRAM:13": "#702082",
-}
-
 TYPE_COLORS = {
     "METRO": "#4a5568",
     "RER": "#2563eb",
     "TRAIN": "#64748b",
     "TRAM": "#0f766e",
-    "TRAMWAY": "#0f766e",
+    "CABLE": "#1e40af",
     "NAVETTE": "#9333ea",
 }
 
-
-def line_color(line_type: str, code: str, color: str | None) -> str:
-    if color:
-        return color
-    key = f"{line_type.upper()}:{code.upper()}"
-    return LINE_COLORS.get(key, TYPE_COLORS.get(line_type.upper(), "#475569"))
+TYPE_ORDER = ("METRO", "RER", "TRAIN", "TRAM", "CABLE", "NAVETTE")
 
 
-def order_line_members(members: list[dict]) -> tuple[list[dict], bool]:
-    has_station_order = any(member["order"] is not None for member in members)
-    if not has_station_order:
-        return members, False
-    return sorted(
-        members,
-        key=lambda member: (
-            member["order"] is None,
-            member["order"] if member["order"] is not None else 0,
-            member["stationId"],
-        ),
-    ), True
+def canonical_type(value: str | None) -> str:
+    value = str(value or "").upper()
+    return "TRAM" if value == "TRAMWAY" else value
 
 
-def json_point(value) -> dict | None:
+def line_color(line_type: str, color: str | None) -> str:
+    return color or TYPE_COLORS.get(canonical_type(line_type), "#475569")
+
+
+def text_color(background: str) -> str:
+    value = background.lstrip("#")
+    try:
+        r, g, b = (int(value[i : i + 2], 16) / 255 for i in (0, 2, 4))
+    except ValueError:
+        return "#ffffff"
+    luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return "#111827" if luminance > 0.6 else "#ffffff"
+
+
+def json_point(value) -> list[float] | None:
     if not isinstance(value, (list, tuple)) or len(value) < 2:
         return None
     try:
@@ -112,102 +79,64 @@ def json_point(value) -> dict | None:
         return None
     if not math.isfinite(x) or not math.isfinite(y):
         return None
-    return {"x": x, "y": y}
+    return [round(x, 2), round(y, 2)]
 
 
-def parse_path_segments(path_json: str | None) -> tuple[list[list[dict]], bool]:
+def parse_path_segments(path_json: str | None) -> list[list[list[float]]]:
+    """Accept a single path [[x, y], ...] or segments [[[x, y], ...], ...]."""
     if not path_json:
-        return [], False
+        return []
     try:
         raw = json.loads(path_json)
-    except (TypeError, ValueError, json.JSONDecodeError):
-        return [], False
+    except (TypeError, ValueError):
+        return []
     if not isinstance(raw, list):
-        return [], False
-
-    single = [point for point in (json_point(item) for item in raw) if point]
+        return []
+    single = [p for p in (json_point(item) for item in raw) if p]
     if len(single) == len(raw) and len(single) >= 2:
-        return [single], False
-
+        return [single]
     segments = []
     for segment in raw:
-        if not isinstance(segment, list):
-            continue
-        points = [point for point in (json_point(item) for item in segment) if point]
-        if len(points) >= 2:
-            segments.append(points)
-    return segments, bool(segments)
+        if isinstance(segment, list):
+            points = [p for p in (json_point(item) for item in segment) if p]
+            if len(points) >= 2:
+                segments.append(points)
+    return segments
 
 
-def dedupe_points(points: list[dict]) -> list[dict]:
-    unique: list[dict] = []
-    for point in points:
-        if not any(math.hypot(point["x"] - other["x"], point["y"] - other["y"]) < 2.0 for other in unique):
-            unique.append(point)
-    return unique
-
-
-def spatially_order_points(points: list[dict]) -> list[dict]:
-    points = dedupe_points(points)
-    if len(points) <= 2:
-        return points
-
-    centroid_x = sum(point["x"] for point in points) / len(points)
-    centroid_y = sum(point["y"] for point in points) / len(points)
-    start_index = max(
-        range(len(points)),
-        key=lambda index: math.hypot(points[index]["x"] - centroid_x, points[index]["y"] - centroid_y),
-    )
-    ordered = [points.pop(start_index)]
-    while points:
-        current = ordered[-1]
-        next_index = min(
-            range(len(points)),
-            key=lambda index: math.hypot(points[index]["x"] - current["x"], points[index]["y"] - current["y"]),
-        )
-        ordered.append(points.pop(next_index))
-    return ordered
+def load_future_routes() -> list[dict]:
+    if not FUTURE_PATH.exists():
+        return []
+    try:
+        return json.loads(FUTURE_PATH.read_text()).get("routes", [])
+    except (OSError, ValueError):
+        return []
 
 
 def fetch_map_data() -> dict:
     conn = pymysql.connect(**DB_CONFIG, cursorclass=pymysql.cursors.DictCursor)
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT id, code, name, type, color, text_color, path_json, sort_order
-                FROM line
-                ORDER BY
-                  FIELD(UPPER(type), 'METRO', 'RER', 'TRAIN', 'TRAM', 'TRAMWAY', 'NAVETTE'),
-                  sort_order IS NULL,
-                  sort_order,
-                  code
-                """
-            )
+            cur.execute("SHOW COLUMNS FROM line LIKE 'status'")
+            status_column = ", status" if cur.fetchone() else ""
+            cur.execute(f"SELECT id, code, name, type, color, text_color, path_json, sort_order{status_column} FROM line")
             raw_lines = cur.fetchall()
-
             cur.execute(
                 """
-                SELECT id, name, name2, x, y
-                FROM stations
-                WHERE x IS NOT NULL AND y IS NOT NULL
-                ORDER BY id
+                SELECT s.id, s.name, s.name2, s.x, s.y
+                FROM stations s
+                WHERE s.x IS NOT NULL AND s.y IS NOT NULL
+                  AND EXISTS (SELECT 1 FROM line_stations ls WHERE ls.station_id = s.id)
+                ORDER BY s.id
                 """
             )
             stations = cur.fetchall()
-
             cur.execute(
                 """
-                SELECT
-                  ls.line_id,
-                  ls.station_id,
-                  ls.station_name,
-                  ls.station_order,
-                  s.name2,
-                  s.x,
-                  s.y
+                SELECT ls.line_id, ls.station_id, ls.station_order
                 FROM line_stations ls
                 JOIN stations s ON s.id = ls.station_id
+                WHERE s.x IS NOT NULL
                 ORDER BY ls.line_id, ls.station_order IS NULL, ls.station_order, ls.id
                 """
             )
@@ -215,86 +144,73 @@ def fetch_map_data() -> dict:
     finally:
         conn.close()
 
-    station_lines: dict[int, list[dict]] = {int(station["id"]): [] for station in stations}
-    line_members: dict[int, list[dict]] = {}
-    line_lookup = {int(line["id"]): line for line in raw_lines}
-
+    station_by_id = {int(s["id"]): s for s in stations}
+    members: dict[int, list[int]] = {}
     for row in memberships:
-        line_id = int(row["line_id"])
-        line = line_lookup.get(line_id)
-        if not line:
-            continue
-        station_id = int(row["station_id"])
-        member = {
-            "stationId": station_id,
-            "stationName": row["name2"] or row["station_name"],
-            "order": row["station_order"],
-            "x": row["x"],
-            "y": row["y"],
-        }
-        line_members.setdefault(line_id, []).append(member)
-        if station_id in station_lines:
-            station_lines[station_id].append(
-                {
-                    "id": line_id,
-                    "code": line["code"],
-                    "type": line["type"],
-                    "color": line_color(line["type"], line["code"], line["color"]),
-                }
-            )
+        sid = int(row["station_id"])
+        if sid in station_by_id and sid not in members.setdefault(int(row["line_id"]), []):
+            members[int(row["line_id"])].append(sid)
+
+    def sort_key(line):
+        line_type = canonical_type(line["type"])
+        rank = TYPE_ORDER.index(line_type) if line_type in TYPE_ORDER else len(TYPE_ORDER)
+        code = str(line["code"])
+        digits = "".join(ch for ch in code if ch.isdigit())
+        return (rank, int(digits) if digits else 999, code)
 
     lines = []
-    for line in raw_lines:
-        ordered_members, points_are_ordered = order_line_members(line_members.get(int(line["id"]), []))
-        member_points = [
-            {"x": float(member["x"]), "y": float(member["y"])}
-            for member in ordered_members
-            if member["x"] is not None and member["y"] is not None
-        ]
-        path_segments, path_is_segmented = parse_path_segments(line["path_json"])
-        points = member_points
-        segments = [member_points] if len(member_points) >= 2 else []
-        if path_is_segmented:
-            segments = path_segments
-            points = [point for segment in segments for point in segment]
-            points_are_ordered = True
-        elif len(points) < 2 and path_segments:
-            points = path_segments[0]
-            segments = path_segments
-            points_are_ordered = True
-        if not points_are_ordered:
-            points = spatially_order_points(points)
-            segments = [points] if len(points) >= 2 else []
+    station_lines: dict[int, list[int]] = {}
+    for line in sorted(raw_lines, key=sort_key):
+        line_id = int(line["id"])
+        station_ids = members.get(line_id, [])
+        segments = parse_path_segments(line["path_json"])
+        if not segments and len(station_ids) >= 2:
+            segments = [[[float(station_by_id[sid]["x"]), float(station_by_id[sid]["y"])] for sid in station_ids]]
+        if not segments:
+            continue
+        positions = [(float(station_by_id[sid]["x"]), float(station_by_id[sid]["y"])) for sid in station_ids]
+        chains, stops = locate_stops(segments, positions)
+        edges = line_edges(chains, stops) if len(stops) > 1 else []
+        color = line_color(line["type"], line["color"])
+        for sid in station_ids:
+            station_lines.setdefault(sid, []).append(line_id)
         lines.append(
             {
-                "id": int(line["id"]),
-                "code": line["code"],
+                "id": line_id,
+                "code": str(line["code"]),
                 "name": line["name"] or f"{line['type']} {line['code']}",
-                "type": line["type"],
-                "color": line_color(line["type"], line["code"], line["color"]),
-                "textColor": line["text_color"] or "#111827",
-                "points": points,
+                "type": canonical_type(line["type"]),
+                "status": line.get("status") or "open",
+                "color": color,
+                "textColor": line["text_color"] or text_color(color),
                 "segments": segments,
-                "stations": ordered_members,
+                "stations": station_ids,
+                "edges": [[station_ids[a], station_ids[b], round(w, 1)] for a, b, w in edges],
             }
         )
 
     return {
         "canvas": {"width": PDF_WIDTH, "height": PDF_HEIGHT},
+        "source": "paris_map.pdf (Île-de-France Mobilités, 2026-01)",
         "stations": [
             {
-                "id": int(station["id"]),
-                "name": station["name2"] or station["name"],
-                "rawName": station["name"],
-                "x": float(station["x"]),
-                "y": float(station["y"]),
-                "lines": station_lines.get(int(station["id"]), []),
+                "id": int(s["id"]),
+                "name": s["name2"] or s["name"],
+                "rawName": s["name"],
+                "x": round(float(s["x"]), 2),
+                "y": round(float(s["y"]), 2),
+                "lines": station_lines.get(int(s["id"]), []),
             }
-            for station in stations
+            for s in stations
+            if int(s["id"]) in station_lines
         ],
         "lines": lines,
+        "future": [
+            route for route in load_future_routes()
+            if route.get("name") not in {f"Métro {line['code']}" for line in lines if line["type"] == "METRO"}
+        ],
         "stats": {
-            "stationCount": len(stations),
+            "stationCount": sum(1 for s in stations if int(s["id"]) in station_lines),
             "lineCount": len(lines),
             "pathLineCount": sum(1 for line in lines if line["segments"]),
         },

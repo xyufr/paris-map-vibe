@@ -3,3 +3,12 @@ __pycache__/
 *.py[cod]
 
 .DS_Store
+# Regenerable PDF extraction artifacts (resources/*.py pipeline)
+resources/build/
+
+# Cloudflare / Node
+node_modules/
+.wrangler/
+
+# Local DB backups taken before applying PDF fixes
+resources/db/backup-*/
