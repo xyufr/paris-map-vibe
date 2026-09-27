@@ -15,18 +15,25 @@ CDGVAL/Orlyval) built with D3.js from the official IDFM PDF plan
 - Works offline after the first visit: `public/sw.js` (Service Worker) keeps
   the page, fonts and map data in the browser; online visits still fetch
   fresh data first.
+- English / Français / 中文 interface: English by default, switcher in the
+  header, remembered per browser, `?lang=fr|zh` in links.
 - Shareable URLs (`#station=…`, `#line=…`, `#route=from-to`), keyboard
-  shortcuts (`/`, `+`, `-`, `0`, `Esc`), dark mode, English / Français / 中文 interface
-  (English by default; switcher in the header, remembered per browser, `?lang=fr|zh`), mobile bottom-sheet layout, optional layer of lines under
-  construction.
+  shortcuts (`/`, `+`, `-`, `0`, `Esc`), dark mode, mobile bottom-sheet
+  layout, optional layer of lines under construction.
 
 ## Demo
 
-Live: https://map.vanves.workers.dev
+Live: https://map.xyufr.com
 
 <p align="center">
-  <img src="resources/paris_map_vibe.gif" width="900"/>
+  <img src="resources/paris_map_vibe.gif" width="960" alt="Demo: zooming into Paris, searching Porte de Vanves, focusing Métro 14, planning La Défense → Bastille, switching to Chinese and dark mode, then resetting the map"/>
 </p>
+
+The demo shows, in order: the full network drawn from the PDF → zooming into
+central Paris → searching *Porte de Vanves* (map pin and zoom) → focusing
+Métro 14 with its ordered stations → planning La Défense → Bastille (fastest
+and fewer-transfers options) → switching the interface to 中文 / Français →
+dark mode → *Reset map*.
 
 ## Run locally (MySQL)
 
