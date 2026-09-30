@@ -183,6 +183,8 @@ Label behavior:
 Layout behavior:
 
 - The map is initially aligned to the useful PDF map area rather than the full PDF page.
+- Zoom and pan are constrained (`constrainZoom` in `app.js`, recomputed with the default view on load/resize): the view cannot move more than 150pt past the map content, and zoom-out stops at 85% of the full-map scale. The extent always includes the default view, so Reset / Home and the phone bottom-sheet layout stay valid.
+- After a user drag or wheel zoom ends (`settleView`), the view settles: at or near the full-map scale (≤105% of default) it animates back to the whole-map view; when zoomed in it springs back so no empty area shows past the map content (`MAP_CONTENT`). Plain clicks do not trigger it.
 - Keep the sidebar compact so the map begins close to the line list.
 
 ## Verification Checklist

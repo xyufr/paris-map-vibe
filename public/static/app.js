@@ -731,8 +731,23 @@
   // zoom
   // ---------------------------------------------------------------------------
 
+  // Useful PDF map area (the default view fits it).
+  const MAP_CONTENT = [560, 70, 3600, 2700];
+  let gestureStart = null;
+
   const zoom = d3.zoom()
     .scaleExtent([0.12, 14])
+    .on("start", (event) => {
+      if (event.sourceEvent) gestureStart = event.transform;
+    })
+    .on("end", (event) => {
+      const start = gestureStart;
+      gestureStart = null;
+      if (!event.sourceEvent || !start) return;
+      const t = event.transform;
+      const moved = Math.abs(t.x - start.x) > 3 || Math.abs(t.y - start.y) > 3 || Math.abs(t.k - start.k) > 1e-3;
+      if (moved) settleView();
+    })
     .on("zoom", (event) => {
       state.transform = event.transform;
       viewport.attr("transform", event.transform);
@@ -750,14 +765,59 @@
     const node = svg.node();
     const width = node.clientWidth || 1000;
     const height = node.clientHeight || 700;
-    const [x0, y0, x1, y1] = [560, 70, 3600, 2700];
+    const [x0, y0, x1, y1] = MAP_CONTENT;
     const mobile = window.matchMedia("(max-width: 760px)").matches;
     const usableHeight = mobile ? height * 0.62 : height;
     const scale = Math.min(width / (x1 - x0), usableHeight / (y1 - y0)) * 0.98;
     const tx = (width - (x1 - x0) * scale) / 2 - x0 * scale;
     const ty = (usableHeight - (y1 - y0) * scale) / 2 - y0 * scale;
     state.defaultTransform = d3.zoomIdentity.translate(tx, ty).scale(scale);
+    constrainZoom(width, height, [x0, y0, x1, y1]);
     return state.defaultTransform;
+  }
+
+  // Keep the map on screen: no panning far past the content and no zooming
+  // out much beyond the full-map view. The extent always contains the default
+  // view (on phones that includes the area under the bottom sheet).
+  function constrainZoom(width, height, [x0, y0, x1, y1]) {
+    const t = state.defaultTransform;
+    const pad = 150;
+    const view = [-t.x / t.k, -t.y / t.k, (width - t.x) / t.k, (height - t.y) / t.k];
+    zoom
+      .scaleExtent([t.k * 0.85, 14])
+      .translateExtent([
+        [Math.min(x0 - pad, view[0]), Math.min(y0 - pad, view[1])],
+        [Math.max(x1 + pad, view[2]), Math.max(y1 + pad, view[3])],
+      ]);
+  }
+
+  // After a drag or wheel zoom: near the full-map scale, go back to the whole
+  // map; when zoomed in, spring back so no empty area shows past the map edge.
+  function settleView() {
+    const t = state.transform;
+    const def = state.defaultTransform;
+    if (t.k <= def.k * 1.05) {
+      resetZoom(320);
+      return;
+    }
+    const node = svg.node();
+    const width = node.clientWidth;
+    const mobile = window.matchMedia("(max-width: 760px)").matches;
+    const height = mobile ? node.clientHeight * 0.62 : node.clientHeight;
+    const [x0, y0, x1, y1] = MAP_CONTENT;
+    const fit = (lo, hi, size, offset) => {
+      const a = lo * t.k + offset;
+      const b = hi * t.k + offset;
+      if (b - a <= size) return (size - (b - a)) / 2 - lo * t.k;
+      if (a > 0) return -lo * t.k;
+      if (b < size) return size - hi * t.k;
+      return offset;
+    };
+    const tx = fit(x0, x1, width, t.x);
+    const ty = fit(y0, y1, height, t.y);
+    if (Math.abs(tx - t.x) < 1 && Math.abs(ty - t.y) < 1) return;
+    svg.transition().duration(280).ease(d3.easeCubicOut)
+      .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(t.k));
   }
 
   function resetZoom(duration = 450) {
