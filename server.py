@@ -207,7 +207,9 @@ def fetch_map_data() -> dict:
         "lines": lines,
         "future": [
             route for route in load_future_routes()
+            # Routes that are now real (construction) lines are drawn by the line itself.
             if route.get("name") not in {f"Métro {line['code']}" for line in lines if line["type"] == "METRO"}
+            | {line["name"] for line in lines}
         ],
         "stats": {
             "stationCount": sum(1 for s in stations if int(s["id"]) in station_lines),

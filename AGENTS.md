@@ -86,7 +86,7 @@ Coordinate and path rules:
 - `stations.x` and `stations.y` should be PDF dot centers.
 - `line_stations.station_order` controls ordered station membership.
 - `line.path_json` can override route geometry.
-- `line.status` (nullable): `construction` marks lines drawn dashed on the PDF (Métro 15 sud, added by `resources/add_line15.py`); the app draws them dashed, labels them "under construction" and excludes them from route planning.
+- `line.status` (nullable): `construction` marks lines drawn dashed on the PDF (Métro 15 sud, added by `resources/add_line15.py`; CDG Express `TRAIN`/`CDGX`, Gare de l'Est ↔ CDG 2, added by `resources/add_cdg_express.py`); the app draws them dashed, labels them "under construction" and excludes them from route planning.
 - A single route path is `[[x, y], [x, y], ...]`.
 - A branched or segmented route path is `[[[x, y], [x, y]], [[x, y], [x, y]], ...]`.
 - Prefer segmented `path_json` for branched routes, loops, and RER/Train/Tram paths where simple ordering creates wrong direct links.
@@ -170,10 +170,13 @@ Offline:
 Line badges:
 
 - Each line shows its number badge beyond every terminus; mid-line roundels appear when zoomed in or when the line is focused. Badges avoid each other and labels avoid badges.
+- Termini of several lines at the same place share one row sorted by line (e.g. "9 15" at Pont de Sèvres, as on the PDF). A row is placed under/over/beside the station, avoiding drawn lines, and is never partly covered by a label; a single badge may be hidden by a station name when nothing else fits.
 
 Label behavior:
 
-- Labels live in a screen-space layer; placement is recomputed after zoom/pan with a grid-based collision check (right, left, above, below, then diagonals).
+- Labels live in a screen-space layer; placement is recomputed after zoom/pan with a grid-based collision check.
+- As on the PDF, names never sit on a line: candidates are tried above, below, right, left, then diagonals (plus a second ring 12px farther out), and any box crossing a drawn route segment (screen-space segment index, `lineCrossings`) is rejected. Horizontal lines therefore get names above/below, vertical lines beside. Only must-show labels (selected, hovered, journey ends) may fall back to a crossing spot.
+- A station name may cover a line-number badge when no other spot is free; that badge is then hidden.
 - Priority: selected/hovered station, journey or focused-line stations, then stations by number of lines.
 - Do not add one-off station-name placement hacks unless the user explicitly asks. Prefer general collision rules.
 

@@ -289,6 +289,7 @@
     if (line.type === "METRO") return line.code;
     if (line.type === "TRAM") return `T${line.code}`;
     if (line.type === "NAVETTE") return line.code === "ORL" ? "ORY" : line.code;
+    if (line.code === "CDGX") return "CDG Express";
     return line.code;
   }
 
@@ -296,7 +297,7 @@
     const names = {
       METRO: `Métro ${line.code}`,
       RER: `RER ${line.code}`,
-      TRAIN: `Transilien ${line.code}`,
+      TRAIN: line.code === "CDGX" ? "CDG Express" : `Transilien ${line.code}`,
       TRAM: `Tram T${line.code}`,
       CABLE: `Câble ${line.code}`,
       NAVETTE: line.code === "CDG" ? "CDGVAL" : line.code === "ORL" ? "Orlyval" : line.name,
@@ -876,6 +877,35 @@
     // Station markers are obstacles too.
     candidates.forEach((c) => insert([c.sx - 4, c.sy - 4, c.sx + 4, c.sy + 4, c.station.id]));
 
+    // Screen-space index of the drawn route segments, so labels stay off lines.
+    const segCell = 48;
+    const segGrid = new Map();
+    const activeLines = focus.size ? state.data.lines.filter((l) => focus.has(l.id)) : state.data.lines;
+    activeLines.forEach((line) => {
+      const half = Math.max(STROKE[line.type], MIN_SCREEN_STROKE[line.type] / k) * k / 2;
+      line.segments.forEach((points) => {
+        let prev = toScreen(points[0][0], points[0][1]);
+        for (let i = 1; i < points.length; i += 1) {
+          const cur = toScreen(points[i][0], points[i][1]);
+          const x0 = Math.min(prev[0], cur[0]) - half;
+          const x1 = Math.max(prev[0], cur[0]) + half;
+          const y0 = Math.min(prev[1], cur[1]) - half;
+          const y1 = Math.max(prev[1], cur[1]) + half;
+          if (x1 >= -40 && y1 >= -40 && x0 <= width + 40 && y0 <= height + 40) {
+            const seg = [prev[0], prev[1], cur[0], cur[1], half];
+            for (let gx = Math.floor(x0 / segCell); gx <= Math.floor(x1 / segCell); gx += 1) {
+              for (let gy = Math.floor(y0 / segCell); gy <= Math.floor(y1 / segCell); gy += 1) {
+                const key = `${gx},${gy}`;
+                if (!segGrid.has(key)) segGrid.set(key, []);
+                segGrid.get(key).push(seg);
+              }
+            }
+          }
+          prev = cur;
+        }
+      });
+    });
+
     // Line number badges go first; labels then avoid them.
     const badges = [];
     const badgeBoxes = [];
@@ -889,31 +919,86 @@
       badgeBoxes.push(focusBox);
     }
     const badgeCollides = (box) => badgeBoxes.some((o) => box[0] < o[2] && box[2] > o[0] && box[1] < o[3] && box[3] > o[1]);
+    const badgeSize = (line) => {
+      const text = lineShortLabel(line);
+      return { text, w: line.type === "METRO" ? 19 : Math.max(19, measure(text, 800) * 0.92 + 9), h: 19 };
+    };
+    const tryPlace = (items, anchor, candidates, avoidLines = true) => {
+      // items: [{ line, text, w, h }] drawn side by side; anchor: map point.
+      const gap = 3;
+      const total = items.reduce((sum, it) => sum + it.w, 0) + gap * (items.length - 1);
+      const h = 19;
+      const [px, py] = toScreen(anchor[0], anchor[1]);
+      const boxes = candidates
+        .filter(([cx, cy]) => !(cx - total / 2 < 6 || cy < 10 || cx + total / 2 > width - 6 || cy > height - 10))
+        .map(([cx, cy]) => [cx - total / 2 - 2, cy - h / 2 - 2, cx + total / 2 + 2, cy + h / 2 + 2, `b${items.map((it) => it.line.id).join("-")}`])
+        .filter((box) => !badgeCollides(box));
+      // Prefer a spot that does not cover a drawn line.
+      const clear = avoidLines ? boxes.find((box) => !lineCrossings(box)) : null;
+      for (const box of clear ? [clear] : boxes.slice(0, 1)) {
+        const cx = (box[0] + box[2]) / 2;
+        const cy = (box[1] + box[3]) / 2;
+        badgeBoxes.push(box);
+        insert(box);
+        let x = cx - total / 2;
+        items.forEach((it) => {
+          const bx = x + it.w / 2;
+          badges.push({
+            line: it.line, text: it.text, w: it.w, h,
+            box: [bx - it.w / 2 - 1, cy - h / 2 - 1, bx + it.w / 2 + 1, cy + h / 2 + 1],
+            map: anchor, dx: bx - px, dy: cy - py, key: `${it.line.id}:${anchor[0]}:${anchor[1]}`,
+          });
+          x += it.w + gap;
+        });
+        return true;
+      }
+      return false;
+    };
+
+    // Terminus badges: lines ending at the same place share one row, as on
+    // the PDF (e.g. "9 15" at Pont de Sèvres).
+    const ends = [];
+    state.data.lines.slice().sort(compareLines).forEach((line) => {
+      if (focus.size && !focus.has(line.id)) return;
+      line.anchors.ends.forEach((a) => {
+        const [px, py] = toScreen(a.p[0], a.p[1]);
+        ends.push({ line, a, px, py, cx: px + a.dir[0] * 14, cy: py + a.dir[1] * 14, ...badgeSize(line) });
+      });
+    });
+    const clusters = [];
+    ends.forEach((e) => {
+      const cluster = clusters.find((c) => c.some((o) => Math.hypot(o.cx - e.cx, o.cy - e.cy) < 30 && o.line.id !== e.line.id));
+      if (cluster) cluster.push(e); else clusters.push([e]);
+    });
+    clusters.forEach((cluster) => {
+      const anchor = cluster[0].a.p;
+      const [px, py] = toScreen(anchor[0], anchor[1]);
+      const mx = cluster.reduce((sum, e) => sum + e.cx, 0) / cluster.length;
+      const my = cluster.reduce((sum, e) => sum + e.cy, 0) / cluster.length;
+      const total = cluster.reduce((sum, e) => sum + e.w + 3, 0);
+      // Several lines: a row under or over the station, like the PDF.
+      const around = [
+        [px, py + 20],
+        [px, py - 20],
+        [px + total / 2 + 12, py],
+        [px - total / 2 - 12, py],
+      ];
+      tryPlace(cluster, anchor, cluster.length > 1 ? [...around, [mx, my]] : [[mx, my], ...around]);
+    });
+
+    // Mid-line roundels when zoomed in or when the line is focused.
     state.data.lines.forEach((line) => {
       const inFocus = focus.has(line.id);
       if (focus.size && !inFocus) return;
-      const text = lineShortLabel(line);
-      const w = line.type === "METRO" ? 19 : Math.max(19, measure(text, 800) * 0.92 + 9);
-      const h = 19;
-      const groups = [
-        ...line.anchors.ends.map((a) => [{ ...a, end: true }]),
-        ...(inFocus || zoomRatio >= 1.8 ? line.anchors.mids : []),
-      ];
-      groups.forEach((options) => options.some((a) => {
-        const [px, py] = toScreen(a.p[0], a.p[1]);
-        const offset = a.end ? 14 : 0;
-        const cx = px + a.dir[0] * offset;
-        const cy = py + a.dir[1] * offset;
-        if (cx < 10 || cy < 10 || cx > width - 10 || cy > height - 10) return false;
-        const box = [cx - w / 2 - 2, cy - h / 2 - 2, cx + w / 2 + 2, cy + h / 2 + 2, `b${line.id}`];
-        if (badgeCollides(box)) return false;
-        badgeBoxes.push(box);
-        insert(box);
-        badges.push({ line, text, w, h, map: a.p, dx: cx - px, dy: cy - py, key: `${line.id}:${a.p[0]}:${a.p[1]}` });
-        return true;
-      }));
+      if (!inFocus && zoomRatio < 1.8) return;
+      const size = badgeSize(line);
+      line.anchors.mids.forEach((spots) => {
+        spots.some((a) => {
+          const [px, py] = toScreen(a.p[0], a.p[1]);
+          return tryPlace([{ line, ...size }], a.p, [[px, py]], false);
+        });
+      });
     });
-    renderBadges(badges);
 
     const limit = focus.size || journeyIds ? 400 : Math.min(420, 70 + zoomRatio * 90);
     for (const c of candidates) {
@@ -923,37 +1008,94 @@
       const weight = c.station.major ? 700 : 560;
       const w = Math.max(...lines.map((line) => measure(line, weight))) + 4;
       const h = lines.length * (LABEL_FONT + 1.5) + 2;
-      const r = c.station.capsule ? Math.min(20, dist(...c.station.capsule) * k / 2 + 6) : 7;
-      const options = [
-        { dx: r + 2, dy: -h / 2, anchor: "start" },
-        { dx: -r - 2 - w, dy: -h / 2, anchor: "end" },
-        { dx: -w / 2, dy: -r - h - 1, anchor: "middle" },
-        { dx: -w / 2, dy: r + 1, anchor: "middle" },
-        { dx: r, dy: -r - h + 2, anchor: "start" },
-        { dx: -r - w, dy: -r - h + 2, anchor: "end" },
-        { dx: r, dy: r - 2, anchor: "start" },
-        { dx: -r - w, dy: r - 2, anchor: "end" },
-      ];
-      let chosen = null;
-      for (const o of options) {
-        const box = [c.sx + o.dx, c.sy + o.dy, c.sx + o.dx + w, c.sy + o.dy + h];
-        const hit = collidesIgnoring(box, c.station.id);
-        if (!hit) { chosen = { ...o, box }; break; }
+      // Half extents of the station marker on screen (capsules span lines).
+      let hx = 6;
+      let hy = 6;
+      if (c.station.capsule) {
+        const [a, b] = c.station.capsule;
+        hx = Math.min(24, Math.abs(a[0] - b[0]) * k / 2 + 6);
+        hy = Math.min(24, Math.abs(a[1] - b[1]) * k / 2 + 6);
       }
+      // As on the PDF: above or below the line first, then beside it.
+      const options = [
+        { dx: -w / 2, dy: -hy - h - 1 },
+        { dx: -w / 2, dy: hy + 1 },
+        { dx: hx + 2, dy: -h / 2 },
+        { dx: -hx - 2 - w, dy: -h / 2 },
+        { dx: hx - 1, dy: -hy - h + 2 },
+        { dx: -hx - w + 1, dy: -hy - h + 2 },
+        { dx: hx - 1, dy: hy - 2 },
+        { dx: -hx - w + 1, dy: hy - 2 },
+      ];
+      // Second ring a little farther out, for stations inside line bundles.
+      const far = 12;
+      options.push(
+        { dx: -w / 2, dy: -hy - h - 1 - far },
+        { dx: -w / 2, dy: hy + 1 + far },
+        { dx: hx + 2 + far, dy: -h / 2 },
+        { dx: -hx - 2 - w - far, dy: -h / 2 },
+        { dx: hx - 1 + far * 0.7, dy: -hy - h + 2 - far * 0.7 },
+        { dx: -hx - w + 1 - far * 0.7, dy: -hy - h + 2 - far * 0.7 },
+        { dx: hx - 1 + far * 0.7, dy: hy - 2 + far * 0.7 },
+        { dx: -hx - w + 1 - far * 0.7, dy: hy - 2 + far * 0.7 },
+      );
+      let chosen = null;
+      let fallback = null;
+      // First try spots clear of everything, then let the name cover a line badge.
+      for (const softBadges of [false, true]) {
+        for (const o of options) {
+          const box = [c.sx + o.dx, c.sy + o.dy, c.sx + o.dx + w, c.sy + o.dy + h];
+          if (collidesIgnoring(box, c.station.id, softBadges)) continue;
+          const crossings = lineCrossings(box);
+          if (!crossings) { chosen = { ...o, box }; break; }
+          if (!fallback || crossings < fallback.crossings) fallback = { ...o, box, crossings };
+        }
+        if (chosen) break;
+      }
+      // Only must-show labels (selected, hovered, journey ends) may sit on a line.
       if (!chosen && c.forced) {
-        const o = options[0];
-        chosen = { ...o, box: [c.sx + o.dx, c.sy + o.dy, c.sx + o.dx + w, c.sy + o.dy + h] };
+        const o = fallback || options[0];
+        chosen = { ...o, box: o.box || [c.sx + o.dx, c.sy + o.dy, c.sx + o.dx + w, c.sy + o.dy + h] };
       }
       if (!chosen) continue;
       insert(chosen.box);
       placed.push({ ...c, lines, w, h, weight, ...chosen });
     }
 
-    function collidesIgnoring(box, id) {
+    // Line badges hidden by a station name are dropped (the name matters more).
+    const overlaps = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
+    renderBadges(badges.filter((badge) => !placed.some((label) => overlaps(label.box, badge.box))));
+
+    // Only single badges are "soft"; a shared terminus row ("9 15") stays whole.
+    function isBadgeBox(o) {
+      return typeof o[4] === "string" && o[4].startsWith("b") && !o[4].includes("-");
+    }
+
+    function lineCrossings(box) {
+      const pad = 1.5;
+      const b = [box[0] + pad, box[1] + pad, box[2] - pad, box[3] - pad];
+      const seen = new Set();
+      let count = 0;
+      for (let gx = Math.floor(b[0] / segCell); gx <= Math.floor(b[2] / segCell); gx += 1) {
+        for (let gy = Math.floor(b[1] / segCell); gy <= Math.floor(b[3] / segCell); gy += 1) {
+          const list = segGrid.get(`${gx},${gy}`);
+          if (!list) continue;
+          for (const seg of list) {
+            if (seen.has(seg)) continue;
+            seen.add(seg);
+            if (segmentHitsBox(seg, b)) count += 1;
+          }
+        }
+      }
+      return count;
+    }
+
+    function collidesIgnoring(box, id, softBadges = false) {
       for (let gx = Math.floor(box[0] / cell); gx <= Math.floor(box[2] / cell); gx += 1) {
         for (let gy = Math.floor(box[1] / cell); gy <= Math.floor(box[3] / cell); gy += 1) {
           const list = grid.get(`${gx},${gy}`);
-          if (list && list.some((o) => o[4] !== id && box[0] < o[2] && box[2] > o[0] && box[1] < o[3] && box[3] > o[1])) return true;
+          if (list && list.some((o) => o[4] !== id && !(softBadges && isBadgeBox(o)) &&
+            box[0] < o[2] && box[2] > o[0] && box[1] < o[3] && box[3] > o[1])) return true;
         }
       }
       return false;
@@ -1002,6 +1144,31 @@
       .attr("fill", (d) => d.line.textColor)
       .text((d) => d.text);
     state.badges = badges;
+  }
+
+  // Does a (thick) screen segment [x0, y0, x1, y1, halfWidth] touch the box?
+  function segmentHitsBox(seg, box) {
+    const [x0, y0, x1, y1, half] = seg;
+    const bx0 = box[0] - half;
+    const by0 = box[1] - half;
+    const bx1 = box[2] + half;
+    const by1 = box[3] + half;
+    // Liang-Barsky clip of the segment against the inflated box.
+    let t0 = 0;
+    let t1 = 1;
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const checks = [[-dx, x0 - bx0], [dx, bx1 - x0], [-dy, y0 - by0], [dy, by1 - y0]];
+    for (const [p, q] of checks) {
+      if (p === 0) {
+        if (q < 0) return false;
+      } else {
+        const t = q / p;
+        if (p < 0) { if (t > t1) return false; if (t > t0) t0 = t; }
+        else { if (t < t0) return false; if (t < t1) t1 = t; }
+      }
+    }
+    return true;
   }
 
   function moveLabels() {
