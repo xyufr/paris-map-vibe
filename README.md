@@ -77,3 +77,10 @@ python3 resources/export_static.py
 Manual decisions verified against PDF crops live in
 `resources/network_overrides.json`; dashed (under construction) routes are in
 `resources/future_lines.json`.
+
+## SEO
+
+- `public/index.html`: description, canonical `https://map.xyufr.com/`, `hreflang` alternates (`?lang=fr|zh`), Open Graph / Twitter tags with the 1200×630 preview `public/og-image.jpg`, JSON-LD (`WebApplication`) and a `<noscript>` summary.
+- `public/static/app.js` (`applyI18n`) keeps the page title, description and canonical URL in the current language (`pageTitle` / `pageDescription` in `I18N`).
+- `public/robots.txt` (keeps `/api/` and `/data/` out of search results) and `public/sitemap.xml` (the three language entries); `public/favicon.svg` is the crawlable icon.
+

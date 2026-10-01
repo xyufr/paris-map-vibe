@@ -3,16 +3,88 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="description" content="Interactive Île-de-France transit map (Metro, RER, Transilien, Tram) drawn from the official PDF plan, with station search and route planning.">
+    <meta name="description" content="Interactive Île-de-France transit map drawn from the official IDFM plan: Métro, RER, Transilien, tram and cable lines, 997 stations, accent-insensitive station search, journey planning and offline use, in English, French and Chinese.">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <link rel="canonical" href="https://map.xyufr.com/">
+    <link rel="alternate" hreflang="en" href="https://map.xyufr.com/">
+    <link rel="alternate" hreflang="fr" href="https://map.xyufr.com/?lang=fr">
+    <link rel="alternate" hreflang="zh" href="https://map.xyufr.com/?lang=zh">
+    <link rel="alternate" hreflang="x-default" href="https://map.xyufr.com/">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Paris Transit Map">
+    <meta property="og:title" content="Paris Transit Map · Métro, RER, Tram & Transilien">
+    <meta property="og:description" content="Interactive Île-de-France transit map drawn from the official IDFM plan: Métro, RER, Transilien, tram and cable lines, 997 stations, accent-insensitive station search, journey planning and offline use, in English, French and Chinese.">
+    <meta property="og:url" content="https://map.xyufr.com/">
+    <meta property="og:image" content="https://map.xyufr.com/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="The Île-de-France Métro, RER, Transilien and tram network drawn as an interactive map">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:locale:alternate" content="fr_FR">
+    <meta property="og:locale:alternate" content="zh_CN">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Paris Transit Map · Métro, RER, Tram & Transilien">
+    <meta name="twitter:description" content="Interactive Île-de-France transit map drawn from the official IDFM plan: Métro, RER, Transilien, tram and cable lines, 997 stations, accent-insensitive station search, journey planning and offline use, in English, French and Chinese.">
+    <meta name="twitter:image" content="https://map.xyufr.com/og-image.jpg">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Paris Transit Map",
+  "alternateName": "Paris en transports",
+  "url": "https://map.xyufr.com/",
+  "image": "https://map.xyufr.com/og-image.jpg",
+  "description": "Interactive Île-de-France transit map drawn from the official IDFM plan: Métro, RER, Transilien, tram and cable lines, 997 stations, accent-insensitive station search, journey planning and offline use, in English, French and Chinese.",
+  "applicationCategory": "TravelApplication",
+  "operatingSystem": "Any (web browser)",
+  "inLanguage": [
+    "en",
+    "fr",
+    "zh"
+  ],
+  "isAccessibleForFree": true,
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "EUR"
+  },
+  "spatialCoverage": {
+    "@type": "Place",
+    "name": "Île-de-France, France"
+  },
+  "featureList": [
+    "Métro, RER, Transilien, tram and cable lines",
+    "Station search",
+    "Journey planning",
+    "Works offline",
+    "English, French and Chinese"
+  ],
+  "isBasedOn": "https://www.iledefrance-mobilites.fr/"
+}
+    </script>
     <meta name="theme-color" content="#16233b">
-    <title>Paris Transit Map</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23e3051c'/%3E%3Ctext x='32' y='44' font-family='Arial' font-weight='700' font-size='34' text-anchor='middle' fill='white'%3EM%3C/text%3E%3C/svg%3E">
+    <title>Paris Transit Map · Métro, RER, Tram & Transilien</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23e3051c'/%3E%3Ctext x='32' y='44' font-family='Arial' font-weight='700' font-size='34' text-anchor='middle' fill='white'%3EM%3C/text%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,500;1,600&display=swap">
-    <link rel="stylesheet" href="/static/styles.css?v=20260930-9">
+    <link rel="stylesheet" href="/static/styles.css?v=20261001-1">
   </head>
   <body>
+    <noscript>
+      <div style="max-width:640px;margin:32px auto;padding:20px 24px;font:16px/1.6 system-ui,sans-serif">
+        <h1>Paris Transit Map · Métro, RER, Tram &amp; Transilien</h1>
+        <p>An interactive map of the Île-de-France public transport network, drawn from the official IDFM plan (January 2026). It needs JavaScript.</p>
+        <ul>
+          <li>Métro, RER, Transilien, tram, cable and airport shuttle lines with 997 stations.</li>
+          <li>Accent-insensitive station search, line focus and neighbouring stops.</li>
+          <li>Journey planning (fastest or fewer transfers), shareable links and offline use.</li>
+          <li>Available in English, French and Chinese.</li>
+        </ul>
+        <p>Plan interactif des transports d’Île-de-France · 巴黎公共交通互动地图. See also the <a href="https://xyufr.com/">illustrated 3D map of Paris</a>.</p>
+      </div>
+    </noscript>
     <main class="app-shell" id="app">
       <aside class="rail" id="rail" aria-label="Controls">
         <header class="brand">
@@ -90,6 +162,6 @@
     </main>
 
     <script src="/vendor/d3.min.js"></script>
-    <script src="/static/app.js?v=20260930-9"></script>
+    <script src="/static/app.js?v=20261001-1"></script>
   </body>
 </html>

@@ -8,6 +8,8 @@
   const I18N = {
     en: {
       title: "Paris Transit",
+      pageTitle: "Paris Transit Map · Métro, RER, Tram & Transilien",
+      pageDescription: "Interactive Île-de-France transit map drawn from the official IDFM plan: Métro, RER, Transilien, tram and cable lines, 997 stations, accent-insensitive station search, journey planning and offline use, in English, French and Chinese.",
       titleAccent: "en transports",
       interchanges: "interchanges",
       subtitle: "Île-de-France · PDF plan 2026",
@@ -66,6 +68,8 @@
     },
     zh: {
       title: "巴黎公共交通",
+      pageTitle: "巴黎公共交通地图 · 地铁、RER、有轨电车与 Transilien",
+      pageDescription: "根据 IDFM 官方线路图绘制的法兰西岛公共交通互动地图：地铁、RER、Transilien、有轨电车与缆车线路，997 个车站，支持不区分重音的车站搜索、路线规划和离线使用，提供英文、法文和中文界面。",
       titleAccent: "公共交通",
       interchanges: "换乘站",
       subtitle: "法兰西岛 · 2026 年 PDF 线路图",
@@ -124,6 +128,8 @@
     },
     fr: {
       title: "Plan des transports",
+      pageTitle: "Plan des transports de Paris · Métro, RER, Tram et Transilien",
+      pageDescription: "Plan interactif des transports d’Île-de-France tracé d’après le plan officiel IDFM : Métro, RER, Transilien, tramway et câble, 997 stations, recherche de station sans accents, calcul d’itinéraire et usage hors ligne, en anglais, français et chinois.",
       titleAccent: "en transports",
       interchanges: "correspondances",
       subtitle: "Île-de-France · plan PDF 2026",
@@ -193,6 +199,10 @@
 
   function applyI18n() {
     document.documentElement.lang = LANG === "zh" ? "zh-CN" : LANG;
+    // Title, description and canonical URL follow the language (each has its own ?lang= entry in sitemap.xml).
+    document.title = T.pageTitle;
+    document.querySelector('meta[name="description"]').content = T.pageDescription;
+    document.querySelector('link[rel="canonical"]').href = LANG === "en" ? "https://map.xyufr.com/" : `https://map.xyufr.com/?lang=${LANG}`;
     document.querySelectorAll(".lang-switch [data-lang]").forEach((button) => {
       const active = button.dataset.lang === LANG;
       button.classList.toggle("is-active", active);

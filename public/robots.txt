@@ -1,0 +1,8 @@
+# Paris Transit Map — https://map.xyufr.com
+User-agent: *
+Allow: /
+# The map data endpoints are not pages.
+Disallow: /api/
+Disallow: /data/
+
+Sitemap: https://map.xyufr.com/sitemap.xml
