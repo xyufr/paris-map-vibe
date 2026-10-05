@@ -523,6 +523,12 @@
     return { ends: uniqueEnds, mids };
   }
 
+  // Stops of one line are already joined by it, so no dotted walk link is drawn between them.
+  function shareLine(aId, bId) {
+    const b = state.stationById.get(bId);
+    return state.stationById.get(aId).lines.some((id) => b.lines.includes(id));
+  }
+
   function sharesNameToken(a, b) {
     const stop = new Set(["gare", "porte", "saint", "sainte", "place", "pont", "rue", "avenue", "les", "des", "du", "de", "la", "le", "et", "sur", "sous"]);
     const ta = a.nameNorm.split(" ").filter((t) => t.length >= 5 && !stop.has(t));
@@ -599,7 +605,7 @@
       });
 
     transferLayer.selectAll("line")
-      .data(state.walks.filter((w) => w.d > 8 && w.d <= WALK_RADIUS))
+      .data(state.walks.filter((w) => w.d > 8 && w.d <= WALK_RADIUS && !shareLine(w.a, w.b)))
       .join("line")
       .attr("class", "transfer-link")
       .attr("x1", (d) => state.stationById.get(d.a).x)
