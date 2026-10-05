@@ -50,6 +50,24 @@
       "why": "M13 Porte de Vanves ring; nearest label is the T3a Didot label"
     },
     {
+      "line": "TRAM:3A",
+      "point": [
+        1983.85,
+        1808.46
+      ],
+      "station_id": 476,
+      "why": "M13/T3a interchange ring is Porte de Vanves, not Didot"
+    },
+    {
+      "line": "TRAM:3A",
+      "point": [
+        2010.95,
+        1808.46
+      ],
+      "station_id": 5,
+      "why": "Didot is the T3a ring between Porte de Vanves and Jean Moulin"
+    },
+    {
       "line": "METRO:14",
       "label": "Aéroport d’Orly",
       "name": "Aéroport d’Orly",
