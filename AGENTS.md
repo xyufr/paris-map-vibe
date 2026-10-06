@@ -86,7 +86,7 @@ Coordinate and path rules:
 - `stations.x` and `stations.y` should be PDF dot centers.
 - `line_stations.station_order` controls ordered station membership.
 - `line.path_json` can override route geometry.
-- `line.status` (nullable): `construction` marks lines drawn dashed on the PDF (Métro 15 sud, added by `resources/add_line15.py`; CDG Express `TRAIN`/`CDGX`, Gare de l'Est ↔ CDG 2, added by `resources/add_cdg_express.py`); the app draws them dashed, labels them "under construction" and excludes them from route planning.
+- `line.status` (nullable): `construction` marks lines drawn dashed on the PDF (Métro 15 sud, added by `resources/add_line15.py`; CDG Express `TRAIN`/`CDGX`, Gare de l'Est ↔ CDG 2, added by `resources/add_cdg_express.py`; RER E western extension `RER`/`E`, Nanterre La Folie ↔ Mantes-la-Jolie, added by `resources/add_rer_e_west.py`); the app draws them dashed, labels them "under construction" and excludes them from route planning.
 - A single route path is `[[x, y], [x, y], ...]`.
 - A branched or segmented route path is `[[[x, y], [x, y]], [[x, y], [x, y]], ...]`.
 - Prefer segmented `path_json` for branched routes, loops, and RER/Train/Tram paths where simple ordering creates wrong direct links.

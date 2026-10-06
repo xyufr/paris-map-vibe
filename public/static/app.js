@@ -1115,6 +1115,16 @@
         { dx: hx - 1 + far * 0.7, dy: hy - 2 + far * 0.7 },
         { dx: -hx - w + 1 - far * 0.7, dy: hy - 2 + far * 0.7 },
       );
+      // Farther still, straight above/below/beside, to clear a wide bundle
+      // passing next to the stop (e.g. a line that does not stop there).
+      for (const d of [far * 2, far * 3]) {
+        options.push(
+          { dx: -w / 2, dy: -hy - h - 1 - d },
+          { dx: -w / 2, dy: hy + 1 + d },
+          { dx: hx + 2 + d, dy: -h / 2 },
+          { dx: -hx - 2 - w - d, dy: -h / 2 },
+        );
+      }
       let chosen = null;
       let fallback = null;
       // First try spots clear of everything, then let the name cover a line badge.

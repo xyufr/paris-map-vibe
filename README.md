@@ -11,8 +11,9 @@ CDGVAL/Orlyval) built with D3.js from the official IDFM PDF plan
 - Itinerary planner (fastest / fewer transfers, optional "metro & tram only"),
   drawn along the real line geometry.
 - Line-number badges on the map (at termini and along the lines), Métro 15
-  (16 stations) and CDG Express (Gare de l’Est ↔ CDG 2), both under
-  construction and drawn dashed.
+  (16 stations), CDG Express (Gare de l’Est ↔ CDG 2) and the RER E western
+  extension (Nanterre La Folie ↔ Mantes-la-Jolie), all under construction and
+  drawn dashed.
 - Works offline after the first visit: `public/sw.js` (Service Worker) keeps
   the page, fonts and map data in the browser; online visits still fetch
   fresh data first.
@@ -71,6 +72,7 @@ python3 resources/apply_network.py --dry-run
 python3 resources/apply_network.py      # back up the tables first
 python3 resources/add_line15.py         # Métro 15 (line.status = construction)
 python3 resources/add_cdg_express.py    # CDG Express (line.status = construction)
+python3 resources/add_rer_e_west.py     # RER E Nanterre - Mantes (line.status = construction)
 python3 resources/export_static.py
 ```
 
