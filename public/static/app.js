@@ -295,6 +295,17 @@
       .join(" ");
   }
 
+  // Termini that get no line badge (station ids), as on the PDF: CDG Express
+  // is only named at the airport, not at Gare de l'Est.
+  const NO_END_BADGE = { CDGX: [860] };
+
+  function hasEndBadge(line, p) {
+    return !(NO_END_BADGE[line.code] || []).some((id) => {
+      const s = state.stationById.get(id);
+      return s && dist([s.x, s.y], p) < 30;
+    });
+  }
+
   function lineShortLabel(line) {
     if (line.type === "METRO") return line.code;
     if (line.type === "TRAM") return `T${line.code}`;
@@ -1037,6 +1048,7 @@
     state.data.lines.slice().sort(compareLines).forEach((line) => {
       if (focus.size && !focus.has(line.id)) return;
       line.anchors.ends.forEach((a) => {
+        if (!hasEndBadge(line, a.p)) return;
         const [px, py] = toScreen(a.p[0], a.p[1]);
         ends.push({ line, a, px, py, cx: px + a.dir[0] * 14, cy: py + a.dir[1] * 14, ...badgeSize(line) });
       });

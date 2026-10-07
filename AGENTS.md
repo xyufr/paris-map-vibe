@@ -169,7 +169,7 @@ Offline:
 
 Line badges:
 
-- Each line shows its number badge beyond every terminus; mid-line roundels appear when zoomed in or when the line is focused. Badges avoid each other and labels avoid badges.
+- Each line shows its number badge beyond every terminus (except termini listed in `NO_END_BADGE`: CDG Express has no badge at Gare de l'Est, only at the airport); mid-line roundels appear when zoomed in or when the line is focused. Badges avoid each other and labels avoid badges.
 - Termini of several lines at the same place share one row sorted by line (e.g. "9 15" at Pont de Sèvres, as on the PDF). A row is placed under/over/beside the station, avoiding drawn lines, and is never partly covered by a label; a single badge may be hidden by a station name when nothing else fits.
 
 Label behavior:
