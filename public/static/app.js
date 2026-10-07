@@ -259,8 +259,9 @@
   const routeLayer = viewport.append("g").attr("class", "routes");
   const transferLayer = viewport.append("g").attr("class", "transfers");
   const journeyLayer = viewport.append("g").attr("class", "journey");
-  const stationLayer = viewport.append("g").attr("class", "stations");
+  // Line hit areas sit under the stations, so a stop shows its own name on hover.
   const hitLayer = viewport.append("g").attr("class", "route-hits");
+  const stationLayer = viewport.append("g").attr("class", "stations");
   const overlayLayer = viewport.append("g").attr("class", "overlay");
   const badgeLayer = svg.append("g").attr("class", "line-badges");
   const labelLayer = svg.append("g").attr("class", "labels");

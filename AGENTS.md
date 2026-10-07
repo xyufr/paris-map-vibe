@@ -146,6 +146,8 @@ Search behavior in `public/static/app.js`:
 - Selecting a station from search highlights only lines that contain that station and zooms smoothly to it (±90pt around the station); clicking a stop on the map keeps the view; "Zoom here" and station links in panels also zoom to the station. Reset / Home returns to the default map view.
 - The selected station is marked in screen space (constant size at any zoom): two pulsing accent rings, a drop-in map pin and a navy name tag above it. Labels and line badges keep clear of that marker.
 
+Hover (mouse only, not touch): a line shows a tooltip with its name; a stop circle or interchange capsule shows the station name and its lines. The line hit layer sits under the stations layer so stops win over lines.
+
 Route planner:
 
 - Dijkstra over (station, line) nodes; ride cost from geometry length, transfer penalty, walking links between stations closer than 34pt or sharing a name token.
