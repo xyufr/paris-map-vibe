@@ -595,6 +595,10 @@ button.badge:hover {
   border-color: var(--station-ink);
 }
 
+.stop-list li.construction::before {
+  background: repeating-linear-gradient(var(--line-color) 0 5px, transparent 5px 9px);
+}
+
 .stop-list .stop-name {
   display: flex;
   align-items: center;

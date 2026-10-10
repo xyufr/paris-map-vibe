@@ -301,6 +301,14 @@
   const NO_END_BADGE = { CDGX: [860] };
 
   function hasEndBadge(line, p) {
+    // No badge where an open line meets its construction extension (M18 at
+    // Massy - Palaiseau): the line simply goes on, dashed.
+    const family = line.extensionOf ? [line.extensionOf] : line.extensions.map((id) => state.lineById.get(id));
+    const atJoin = family.some((other) => line.stations.some((id) => {
+      const s = state.stationById.get(id);
+      return other.stationSet.has(id) && s && dist([s.x, s.y], p) < 30;
+    }));
+    if (atJoin) return false;
     return !(NO_END_BADGE[line.code] || []).some((id) => {
       const s = state.stationById.get(id);
       return s && dist([s.x, s.y], p) < 30;
@@ -342,6 +350,8 @@
     const ta = TYPE_ORDER.indexOf(a.type);
     const tb = TYPE_ORDER.indexOf(b.type);
     if (ta !== tb) return ta - tb;
+    // CDG Express comes after the Transilien letters, as in the PDF legend.
+    if ((a.code === "CDGX") !== (b.code === "CDGX")) return a.code === "CDGX" ? 1 : -1;
     const na = parseInt(a.code, 10);
     const nb = parseInt(b.code, 10);
     if (!Number.isNaN(na) && !Number.isNaN(nb) && na !== nb) return na - nb;
@@ -426,6 +436,19 @@
         line.adjacency.get(b)?.push({ id: a, w });
       });
       state.lineById.set(line.id, line);
+    });
+    // A construction extension of an open line (M18, RER E) has no chip of its
+    // own: it follows the open line's chip.
+    data.lines.forEach((line) => {
+      line.extensions = [];
+      line.extensionOf = line.status === "construction"
+        ? data.lines.find((l) => l.type === line.type && l.code === line.code && l.status !== "construction") || null
+        : null;
+    });
+    data.lines.forEach((line) => { if (line.extensionOf) line.extensionOf.extensions.push(line.id); });
+    data.lines.forEach((line) => {
+      const segments = [line, ...line.extensions.map((id) => state.lineById.get(id))].flatMap((l) => l.segments);
+      line.fullBbox = boundsOf(segments.flat());
     });
     data.stations.forEach((station) => {
       station.norm = normalizeText(`${station.name} ${station.rawName || ""}`);
@@ -686,7 +709,9 @@
 
   function activeLineSet() {
     if (state.journey) return new Set(state.journey.legs.filter((l) => l.lineId).map((l) => l.lineId));
-    return state.focusLineIds;
+    const focus = new Set(state.focusLineIds);
+    state.focusLineIds.forEach((id) => (state.lineById.get(id)?.extensions || []).forEach((ext) => focus.add(ext)));
+    return focus;
   }
 
   function highlightHover() {
@@ -1344,7 +1369,7 @@
     renderLineDetails(line);
     switchTab("explore");
     highlightHover();
-    if (fit) fitBounds(line.bbox, { padding: 50, maxScale: 3 });
+    if (fit) fitBounds(line.fullBbox, { padding: 50, maxScale: 3 });
     if (updateHash) writeHash();
   }
 
@@ -1430,21 +1455,37 @@
     details.dataset.station = station.id;
   }
 
+  // Termini of a set of lines taken together (stations with a single neighbour).
+  function terminiOf(lines) {
+    const degree = new Map();
+    lines.forEach((l) => l.adjacency.forEach((next, id) => degree.set(id, (degree.get(id) || 0) + next.length)));
+    const ids = [...new Set(lines.flatMap((l) => l.stations))];
+    return ids.filter((id) => degree.get(id) === 1).map((id) => state.stationById.get(id)?.name).filter(Boolean);
+  }
+
   function renderLineDetails(line) {
-    const termini = line.stations.filter((id) => (line.adjacency.get(id) || []).length === 1);
-    const list = line.stations.map((id) => {
+    // An open line lists its construction extension too (M18, RER E), dashed.
+    const extensions = line.extensions.map((id) => state.lineById.get(id));
+    const family = new Set([line.id, ...line.extensions]);
+    const stops = line.stations.map((id) => ({ id, construction: line.status === "construction" }));
+    extensions.forEach((ext) => ext.stations.forEach((id) => {
+      if (!line.stationSet.has(id)) stops.push({ id, construction: true });
+    }));
+    const list = stops.map(({ id, construction }) => {
       const s = state.stationById.get(id);
-      const others = stationLines(s).filter((l) => l.id !== line.id);
-      return `<li class="${others.length ? "interchange" : ""}"><button type="button" class="stop-name" data-station="${s.id}">
+      const others = stationLines(s).filter((l) => !family.has(l.id));
+      const cls = [others.length ? "interchange" : "", construction && extensions.length ? "construction" : ""].filter(Boolean).join(" ");
+      return `<li class="${cls}"><button type="button" class="stop-name" data-station="${s.id}">
         <span>${escapeHtml(s.name)}</span><span class="mini-badges">${others.map((l) => badgeHtml(l)).join("")}</span></button></li>`;
     }).join("");
-    const terminusNames = termini.map((id) => state.stationById.get(id)?.name).filter(Boolean);
+    const terminusNames = terminiOf([line, ...extensions]);
+    const extensionNote = extensions.map((ext) => `<div class="card-sub">⚠ ${escapeHtml(T.construction)} · ${terminiOf([ext]).map(escapeHtml).join(" ⇄ ")}</div>`).join("");
     details.innerHTML = `
       <div class="card" style="--line-color:${line.color}">
         <div class="card-title">
           <h2><span class="badges">${badgeHtml(line, { large: true })}</span> ${escapeHtml(lineLongLabel(line))}</h2>
         </div>
-        <div class="card-sub">${line.status === "construction" ? `⚠ ${escapeHtml(T.construction)} · ` : ""}${line.stations.length} ${escapeHtml(T.stations)}${terminusNames.length ? ` · ${terminusNames.map(escapeHtml).join(" ⇄ ")}` : ""}</div>
+        <div class="card-sub">${line.status === "construction" ? `⚠ ${escapeHtml(T.construction)} · ` : ""}${stops.length} ${escapeHtml(T.stations)}${terminusNames.length ? ` · ${terminusNames.map(escapeHtml).join(" ⇄ ")}` : ""}</div>${extensionNote}
         <div class="actions"><button type="button" class="pill-button" data-action="fit-line" data-line="${line.id}">⤢ ${escapeHtml(T.fitLine)}</button></div>
         <div class="section-label">${escapeHtml(T.stationsOnLine)}</div>
         <ol class="stop-list">${list}</ol>
@@ -1460,7 +1501,7 @@
     if (action === "route-from" && current) { setRouteEndpoint("from", current); return; }
     if (action === "route-to" && current) { setRouteEndpoint("to", current); return; }
     if (action === "zoom-station" && current) { zoomToStation(current); return; }
-    if (action === "fit-line" && lineButton) { fitBounds(state.lineById.get(Number(lineButton.dataset.line)).bbox, { padding: 50, maxScale: 3 }); return; }
+    if (action === "fit-line" && lineButton) { fitBounds(state.lineById.get(Number(lineButton.dataset.line)).fullBbox, { padding: 50, maxScale: 3 }); return; }
     if (stationButton) { selectStation(Number(stationButton.dataset.station), { zoom: "station" }); return; }
     if (lineButton) selectLine(Number(lineButton.dataset.line));
   });
@@ -1470,7 +1511,7 @@
   // ---------------------------------------------------------------------------
 
   function renderLineFilters() {
-    const groups = TYPE_ORDER.map((type) => ({ type, lines: state.data.lines.filter((l) => l.type === type).sort(compareLines) }))
+    const groups = TYPE_ORDER.map((type) => ({ type, lines: state.data.lines.filter((l) => l.type === type && !l.extensionOf).sort(compareLines) }))
       .filter((g) => g.lines.length);
     lineFilters.innerHTML = groups.map((g) => `
       <div class="line-group">
@@ -1881,7 +1922,7 @@
       return;
     }
     const line = event.target.closest("[data-line]");
-    if (line) fitBounds(state.lineById.get(Number(line.dataset.line)).bbox, { padding: 50, maxScale: 3 });
+    if (line) fitBounds(state.lineById.get(Number(line.dataset.line)).fullBbox, { padding: 50, maxScale: 3 });
   });
 
   function computeRoute({ fit = true } = {}) {

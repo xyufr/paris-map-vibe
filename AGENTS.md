@@ -46,6 +46,7 @@ Primary PDF sources:
 
 - `/Users/xyu/Desktop/paris_map.pdf`
 - `resources/paris_map.pdf`
+- `resources/paris_map_v2.pdf` (February 2026 plan, same page layout; source of Métro 16/17/18)
 
 When coordinates are needed, derive or validate them from the PDF, not from web maps.
 
@@ -86,7 +87,7 @@ Coordinate and path rules:
 - `stations.x` and `stations.y` should be PDF dot centers.
 - `line_stations.station_order` controls ordered station membership.
 - `line.path_json` can override route geometry.
-- `line.status` (nullable): `construction` marks lines drawn dashed on the PDF (Métro 15 sud, added by `resources/add_line15.py`; CDG Express `TRAIN`/`CDGX`, Gare de l'Est ↔ CDG 2, added by `resources/add_cdg_express.py`; RER E western extension `RER`/`E`, Nanterre La Folie ↔ Mantes-la-Jolie, added by `resources/add_rer_e_west.py`); the app draws them dashed, labels them "under construction" and excludes them from route planning.
+- `line.status` (nullable): `construction` marks lines drawn dashed on the PDF (Métro 15 sud, added by `resources/add_line15.py`; CDG Express `TRAIN`/`CDGX`, Gare de l'Est ↔ CDG 2, added by `resources/add_cdg_express.py`; RER E western extension `RER`/`E`, Nanterre La Folie ↔ Mantes-la-Jolie, added by `resources/add_rer_e_west.py`; Métro 16, 17 and the Massy-Palaiseau ↔ Aéroport d'Orly section of 18 (`METRO 18 (prolongement)`; Christ de Saclay ↔ Massy-Palaiseau is open), added by `resources/add_lines_16_17_18.py` from `resources/paris_map_v2.pdf`, the February 2026 plan, which also moves the Saint-Denis Pleyel capsule and the Stade de France – Saint-Denis dot); the app draws them dashed, labels them "under construction" and excludes them from route planning.
 - A single route path is `[[x, y], [x, y], ...]`.
 - A branched or segmented route path is `[[[x, y], [x, y]], [[x, y], [x, y]], ...]`.
 - Prefer segmented `path_json` for branched routes, loops, and RER/Train/Tram paths where simple ordering creates wrong direct links.
