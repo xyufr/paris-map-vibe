@@ -358,8 +358,12 @@
     return String(a.code).localeCompare(String(b.code));
   }
 
+  // A construction extension shows as its open line when the station is on both
+  // (M18 at Massy - Palaiseau).
   function stationLines(station) {
-    return station.lines.map((id) => state.lineById.get(id)).filter(Boolean).sort(compareLines);
+    return station.lines.map((id) => state.lineById.get(id)).filter(Boolean)
+      .filter((l) => !(l.extensionOf && station.lines.includes(l.extensionOf.id)))
+      .sort(compareLines);
   }
 
   function dist(a, b) {
@@ -1429,7 +1433,9 @@
   function renderStationDetails(station) {
     const lines = stationLines(station);
     const neighborRows = lines.map((line) => {
-      const next = neighborsOnLine(line, station.id);
+      const next = [line, ...line.extensions.map((id) => state.lineById.get(id))]
+        .filter((l) => l.stationSet.has(station.id))
+        .flatMap((l) => neighborsOnLine(l, station.id));
       return `<div class="neighbor-row">${badgeHtml(line, { button: true })}<div class="links">${
         next.map((s) => `<button type="button" class="link-button" data-station="${s.id}">${escapeHtml(s.name)}</button>`).join(" · ") || "—"
       }</div></div>`;
