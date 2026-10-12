@@ -300,6 +300,14 @@
   // is only named at the airport, not at Gare de l'Est.
   const NO_END_BADGE = { CDGX: [860] };
 
+  // Ends of a Transilien line in the order of its official line diagram: the
+  // first is the straight run from Paris, then the branches in diagram order.
+  // Lines not listed keep the farthest ride as the straight run.
+  const LINE_DIAGRAM_ENDS = {
+    "TRAIN:J": ["Vernon Giverny", "Limay", "Gisors", "Ermont Eaubonne"],
+    "TRAIN:P": ["Château Thierry", "La Ferté-Milon", "Coulommiers", "Provins"],
+  };
+
   function hasEndBadge(line, p) {
     // No badge where an open line meets its construction extension (M18 at
     // Massy - Palaiseau): the line simply goes on, dashed.
@@ -1477,7 +1485,7 @@
   // ride length goes on, as on the line diagrams (J: Saint-Lazare - Poissy -
   // Vernon, then Argenteuil - Gisors, then Mantes via Conflans and Ermont).
   // Returns rows [{id, col}], the column count and the links between rows.
-  function lineTrackLayout(ids, edges, root = null) {
+  function lineTrackLayout(ids, edges, root = null, preferEnds = []) {
     const key = (a, b) => `${Math.min(a, b)}-${Math.max(a, b)}`;
     const adj = new Map(ids.map((id) => [id, []]));
     const weight = new Map();
@@ -1551,9 +1559,16 @@
           stack.push(n);
         });
       }
+      // A listed diagram end in reach wins over the farthest stop.
+      const preferred = preferEnds.find((id) => prev.has(id));
+      if (preferred != null) last = preferred;
       const path = [];
       for (let id = last; id != null; id = prev.get(id)) path.unshift(id);
-      return path; // start ... farthest
+      return path; // start ... farthest (or the first listed end)
+    };
+    const endRank = (path) => {
+      const rank = preferEnds.indexOf(path[path.length - 1]);
+      return rank < 0 ? preferEnds.length : rank;
     };
     const chainOf = new Map();
     const chainParent = [];
@@ -1568,13 +1583,14 @@
       const tail = [];
       const addBranches = (i, merge) => {
         const id = path[i];
-        tree.get(id).forEach((n) => {
-          if (placed.has(n)) return;
-          const sub = farthestPath(n).reverse(); // terminus ... n
+        // Sibling branches in diagram order (their subtrees are disjoint).
+        const runs = tree.get(id).filter((n) => !placed.has(n)).map((n) => farthestPath(n));
+        runs.sort((x, y) => endRank(x) - endRank(y)).forEach((run) => {
+          const n = run[0];
           const branch = chainParent.push(chain) - 1;
           links.push([n, id, id]);
-          if (merge) head = [...layoutPath(sub, branch), ...head];
-          else tail.push(...layoutPath(sub.reverse(), branch));
+          if (merge) head = [...layoutPath([...run].reverse(), branch), ...head];
+          else tail.push(...layoutPath(run, branch));
         });
       };
       const middle = root != null ? 0 : (path.length - 1) / 2;
@@ -1728,6 +1744,13 @@
     return best != null && line.adjacency.get(best)?.length !== 2 ? best : null;
   }
 
+  function diagramEnds(line) {
+    const names = LINE_DIAGRAM_ENDS[`${line.type}:${line.code}`] || [];
+    return names
+      .map((name) => line.stations.find((id) => state.stationById.get(id)?.nameNorm === normalizeText(name)))
+      .filter((id) => id != null);
+  }
+
   function renderLineDetails(line) {
     // An open line lists its construction extension too (M18, RER E), dashed.
     const extensions = line.extensions.map((id) => state.lineById.get(id));
@@ -1742,6 +1765,7 @@
       stops.map((s) => s.id).filter((id) => state.stationById.has(id)),
       [line, ...extensions].flatMap((l) => l.edges),
       parisTerminal(line),
+      diagramEnds(line),
     );
     const pieces = trackPieces(layout, (a, b) => extensions.length > 0 && !openEdges.has(edgeKey(a, b)));
     const indent = 26 + (layout.columns - 1) * TRACK_STEP;
