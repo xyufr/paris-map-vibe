@@ -1469,6 +1469,178 @@
     return ids.filter((id) => degree.get(id) === 1).map((id) => state.stationById.get(id)?.name).filter(Boolean);
   }
 
+  // Station list of a line as a track diagram. The longest run is the trunk;
+  // a side branch merges in when it joins the first half of its parent run and
+  // forks out when it joins the second half (M13: two branches, then one line).
+  // Returns rows [{id, col}], the column count and the links between rows.
+  function lineTrackLayout(ids, edges) {
+    const adj = new Map(ids.map((id) => [id, []]));
+    edges.forEach(([a, b]) => {
+      if (a !== b && adj.has(a) && adj.has(b) && !adj.get(a).includes(b)) { adj.get(a).push(b); adj.get(b).push(a); }
+    });
+    // Spanning forest; the remaining edges close loops and are drawn as extra links.
+    const tree = new Map(ids.map((id) => [id, []]));
+    const treeKeys = new Set();
+    const seen = new Set();
+    ids.forEach((root) => {
+      if (seen.has(root)) return;
+      seen.add(root);
+      const queue = [root];
+      while (queue.length) {
+        const a = queue.shift();
+        adj.get(a).forEach((b) => {
+          if (seen.has(b)) return;
+          seen.add(b);
+          tree.get(a).push(b);
+          tree.get(b).push(a);
+          treeKeys.add(`${Math.min(a, b)}-${Math.max(a, b)}`);
+          queue.push(b);
+        });
+      }
+    });
+    const placed = new Set();
+    const farthestPath = (start) => {
+      const prev = new Map([[start, null]]);
+      const queue = [start];
+      let last = start;
+      while (queue.length) {
+        last = queue.shift();
+        tree.get(last).forEach((n) => {
+          if (!prev.has(n) && !placed.has(n)) { prev.set(n, last); queue.push(n); }
+        });
+      }
+      const path = [];
+      for (let id = last; id != null; id = prev.get(id)) path.unshift(id);
+      return path; // start ... farthest
+    };
+    const chainOf = new Map();
+    const chainParent = [];
+    const links = []; // [a, b, bendAt]
+    function layoutPath(path, chain) {
+      path.forEach((id) => { placed.add(id); chainOf.set(id, chain); });
+      for (let i = 1; i < path.length; i += 1) links.push([path[i - 1], path[i], null]);
+      // Merging branches are listed before the run and forking ones after it, so
+      // no track runs on past a terminus. The branch joining nearest the run
+      // sits next to it (laid out first, listed closest).
+      let head = [];
+      const tail = [];
+      const addBranches = (i, merge) => {
+        const id = path[i];
+        tree.get(id).forEach((n) => {
+          if (placed.has(n)) return;
+          const sub = farthestPath(n).reverse(); // terminus ... n
+          const branch = chainParent.push(chain) - 1;
+          links.push([n, id, id]);
+          if (merge) head = [...layoutPath(sub, branch), ...head];
+          else tail.push(...layoutPath(sub.reverse(), branch));
+        });
+      };
+      const middle = (path.length - 1) / 2;
+      for (let i = 0; i < middle; i += 1) addBranches(i, true);
+      for (let i = path.length - 1; i >= middle; i -= 1) addBranches(i, false);
+      return [...head, ...path, ...tail];
+    }
+    const order = [];
+    const index = new Map(ids.map((id, i) => [id, i]));
+    ids.forEach((root) => {
+      if (placed.has(root)) return;
+      const end = farthestPath(root).pop();
+      const trunk = farthestPath(end);
+      if (index.get(trunk[trunk.length - 1]) < index.get(trunk[0])) trunk.reverse();
+      order.push(...layoutPath(trunk, chainParent.push(null) - 1));
+    });
+    adj.forEach((next, a) => next.forEach((b) => {
+      if (a >= b || treeKeys.has(`${a}-${b}`)) return;
+      const [ca, cb] = [chainOf.get(a), chainOf.get(b)];
+      if (ca !== cb) links.push([a, b, ca < cb ? a : b]);
+    }));
+    const rowOf = new Map(order.map((id, i) => [id, i]));
+
+    // Columns: a chain takes the lowest column whose half-rows are free,
+    // including where its elbow crosses other columns.
+    const spans = chainParent.map(() => ({ halves: [], cross: [] }));
+    order.forEach((id, r) => spans[chainOf.get(id)].halves.push(2 * r, 2 * r + 1));
+    links.forEach(([a, b, bend]) => {
+      const lo = Math.min(rowOf.get(a), rowOf.get(b));
+      const hi = Math.max(rowOf.get(a), rowOf.get(b));
+      const owner = bend == null ? a : (bend === a ? b : a);
+      for (let h = 2 * lo + 1; h <= 2 * hi; h += 1) spans[chainOf.get(owner)].halves.push(h);
+      if (bend != null) spans[chainOf.get(owner)].cross.push({ row: rowOf.get(bend), chain: chainOf.get(bend) });
+    });
+    const col = [];
+    const occupied = new Map();
+    const isFree = (h, c) => !occupied.get(h)?.has(c);
+    const occupy = (h, c) => { if (!occupied.has(h)) occupied.set(h, new Set()); occupied.get(h).add(c); };
+    spans.forEach((span, k) => {
+      let c = 0;
+      if (chainParent[k] != null) {
+        const crossFree = (c) => span.cross.every(({ row, chain }) => {
+          for (let x = Math.min(col[chain], c) + 1; x < Math.max(col[chain], c); x += 1) {
+            if (!isFree(2 * row, x) || !isFree(2 * row + 1, x)) return false;
+          }
+          return true;
+        });
+        const fits = (c) => span.halves.every((h) => isFree(h, c));
+        // An elbow may have to cross a long branch (loops) when no column avoids it.
+        for (c = 1; c <= k + 1 && !(fits(c) && crossFree(c)); c += 1);
+        if (c > k + 1) for (c = 1; !fits(c); c += 1);
+      }
+      col[k] = c;
+      span.halves.forEach((h) => occupy(h, c));
+      span.cross.forEach(({ row, chain }) => {
+        for (let x = Math.min(col[chain], c) + 1; x < Math.max(col[chain], c); x += 1) { occupy(2 * row, x); occupy(2 * row + 1, x); }
+      });
+    });
+    return {
+      rows: order.map((id) => ({ id, col: col[chainOf.get(id)] })),
+      columns: Math.max(1, ...col.map((c) => c + 1)),
+      links: links.map(([a, b, bend]) => ({ a, b, bend, rowA: rowOf.get(a), rowB: rowOf.get(b) })),
+    };
+  }
+
+  // Track pieces of each row: half bars per column, elbows at junctions, the dot.
+  function trackPieces(layout, isDashed) {
+    const rows = layout.rows.map(() => ({ bars: [], elbows: [] }));
+    const colOfRow = (r) => layout.rows[r].col;
+    layout.links.forEach(({ a, b, bend, rowA, rowB }) => {
+      const dashed = isDashed(a, b);
+      if (bend == null) {
+        const [lo, hi] = rowA < rowB ? [rowA, rowB] : [rowB, rowA];
+        const c = colOfRow(lo);
+        rows[lo].bars.push({ c, half: "bottom", dashed });
+        for (let r = lo + 1; r < hi; r += 1) rows[r].bars.push({ c, half: "full", dashed });
+        rows[hi].bars.push({ c, half: "top", dashed });
+        return;
+      }
+      const [rJ, rB] = bend === a ? [rowA, rowB] : [rowB, rowA];
+      const [cJ, cB] = [colOfRow(rJ), colOfRow(rB)];
+      const up = rB < rJ;
+      rows[rB].bars.push({ c: cB, half: up ? "bottom" : "top", dashed });
+      for (let r = Math.min(rB, rJ) + 1; r < Math.max(rB, rJ); r += 1) rows[r].bars.push({ c: cB, half: "full", dashed });
+      rows[rJ].elbows.push({ from: cJ, to: cB, up, dashed });
+    });
+    return rows;
+  }
+
+  const TRACK_X0 = 10.5;
+  const TRACK_STEP = 13;
+
+  function trackHtml(pieces, c) {
+    const x = (col) => TRACK_X0 + col * TRACK_STEP;
+    const bars = pieces.bars.map(({ c: bc, half, dashed }) => {
+      const v = half === "top" ? "top:0;bottom:50%" : half === "bottom" ? "top:50%;bottom:0" : "top:0;bottom:0";
+      return `<span class="track-bar${dashed ? " dashed" : ""}" style="left:${x(bc) - 2.5}px;${v}"></span>`;
+    });
+    const elbows = pieces.elbows.map(({ from, to, up, dashed }) => {
+      const left = Math.min(x(from), x(to)) - 2.5;
+      const width = Math.abs(x(to) - x(from)) + 5;
+      const side = to > from ? "right" : "left";
+      const v = up ? "top:0;height:calc(50% + 2.5px)" : "top:calc(50% - 2.5px);bottom:0";
+      return `<span class="track-elbow ${up ? "up" : "down"} ${side}${dashed ? " dashed" : ""}" style="left:${left}px;width:${width}px;${v}"></span>`;
+    });
+    return `${bars.join("")}${elbows.join("")}<span class="track-dot" style="left:${x(c) - 5.5}px"></span>`;
+  }
+
   function renderLineDetails(line) {
     // An open line lists its construction extension too (M18, RER E), dashed.
     const extensions = line.extensions.map((id) => state.lineById.get(id));
@@ -1477,11 +1649,18 @@
     extensions.forEach((ext) => ext.stations.forEach((id) => {
       if (!line.stationSet.has(id)) stops.push({ id, construction: true });
     }));
-    const list = stops.map(({ id, construction }) => {
+    const edgeKey = (a, b) => `${Math.min(a, b)}-${Math.max(a, b)}`;
+    const openEdges = new Set(line.edges.map(([a, b]) => edgeKey(a, b)));
+    const layout = lineTrackLayout(
+      stops.map((s) => s.id).filter((id) => state.stationById.has(id)),
+      [line, ...extensions].flatMap((l) => l.edges),
+    );
+    const pieces = trackPieces(layout, (a, b) => extensions.length > 0 && !openEdges.has(edgeKey(a, b)));
+    const indent = 26 + (layout.columns - 1) * TRACK_STEP;
+    const list = layout.rows.map(({ id, col }, r) => {
       const s = state.stationById.get(id);
       const others = stationLines(s).filter((l) => !family.has(l.id));
-      const cls = [others.length ? "interchange" : "", construction && extensions.length ? "construction" : ""].filter(Boolean).join(" ");
-      return `<li class="${cls}"><button type="button" class="stop-name" data-station="${s.id}">
+      return `<li class="${others.length ? "interchange" : ""}" style="padding-left:${indent}px">${trackHtml(pieces[r], col)}<button type="button" class="stop-name" data-station="${s.id}">
         <span>${escapeHtml(s.name)}</span><span class="mini-badges">${others.map((l) => badgeHtml(l)).join("")}</span></button></li>`;
     }).join("");
     const terminusNames = terminiOf([line, ...extensions]);

@@ -560,29 +560,37 @@ button.badge:hover {
   padding: 3px 0 3px 26px;
 }
 
-.stop-list li::before {
-  content: "";
+.stop-list .track-bar {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 8px;
   width: 5px;
   background: var(--line-color);
 }
 
-.stop-list li:first-child::before {
-  top: 50%;
+.stop-list .track-bar.dashed {
+  background: repeating-linear-gradient(var(--line-color) 0 5px, transparent 5px 9px);
 }
 
-.stop-list li:last-child::before {
-  bottom: 50%;
+.stop-list .track-elbow {
+  position: absolute;
+  border: 0 solid var(--line-color);
 }
 
-.stop-list li::after {
-  content: "";
+.stop-list .track-elbow.dashed {
+  border-style: dashed;
+}
+
+.stop-list .track-elbow.up { border-bottom-width: 5px; }
+.stop-list .track-elbow.down { border-top-width: 5px; }
+.stop-list .track-elbow.right { border-right-width: 5px; }
+.stop-list .track-elbow.left { border-left-width: 5px; }
+.stop-list .track-elbow.up.right { border-bottom-right-radius: 9px; }
+.stop-list .track-elbow.up.left { border-bottom-left-radius: 9px; }
+.stop-list .track-elbow.down.right { border-top-right-radius: 9px; }
+.stop-list .track-elbow.down.left { border-top-left-radius: 9px; }
+
+.stop-list .track-dot {
   position: absolute;
   top: 50%;
-  left: 5px;
   width: 11px;
   height: 11px;
   border: 2px solid var(--line-color);
@@ -591,12 +599,8 @@ button.badge:hover {
   transform: translateY(-50%);
 }
 
-.stop-list li.interchange::after {
+.stop-list li.interchange .track-dot {
   border-color: var(--station-ink);
-}
-
-.stop-list li.construction::before {
-  background: repeating-linear-gradient(var(--line-color) 0 5px, transparent 5px 9px);
 }
 
 .stop-list .stop-name {
