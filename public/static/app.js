@@ -1472,41 +1472,83 @@
   // Station list of a line as a track diagram. The longest run is the trunk;
   // a side branch merges in when it joins the first half of its parent run and
   // forks out when it joins the second half (M13: two branches, then one line).
+  // With a root (the Paris terminal of a Transilien line) the list starts there
+  // and every branch forks out; at each junction the run reaching farthest by
+  // ride length goes on, as on the line diagrams (J: Saint-Lazare - Poissy -
+  // Vernon, then Argenteuil - Gisors, then Mantes via Conflans and Ermont).
   // Returns rows [{id, col}], the column count and the links between rows.
-  function lineTrackLayout(ids, edges) {
+  function lineTrackLayout(ids, edges, root = null) {
+    const key = (a, b) => `${Math.min(a, b)}-${Math.max(a, b)}`;
     const adj = new Map(ids.map((id) => [id, []]));
-    edges.forEach(([a, b]) => {
-      if (a !== b && adj.has(a) && adj.has(b) && !adj.get(a).includes(b)) { adj.get(a).push(b); adj.get(b).push(a); }
+    const weight = new Map();
+    edges.forEach(([a, b, w]) => {
+      if (a === b || !adj.has(a) || !adj.has(b)) return;
+      if (!adj.get(a).includes(b)) { adj.get(a).push(b); adj.get(b).push(a); }
+      weight.set(key(a, b), Math.min(weight.get(key(a, b)) ?? Infinity, root != null ? w || 1 : 1));
     });
-    // Spanning forest; the remaining edges close loops and are drawn as extra links.
+    // Spanning forest (shortest rides from the root, else breadth-first); the
+    // remaining edges close loops and are drawn as extra links.
     const tree = new Map(ids.map((id) => [id, []]));
     const treeKeys = new Set();
     const seen = new Set();
-    ids.forEach((root) => {
-      if (seen.has(root)) return;
-      seen.add(root);
-      const queue = [root];
-      while (queue.length) {
-        const a = queue.shift();
-        adj.get(a).forEach((b) => {
-          if (seen.has(b)) return;
-          seen.add(b);
+    const dist = new Map();
+    const from = new Map();
+    (root != null ? [root, ...ids] : ids).forEach((start) => {
+      if (seen.has(start)) return;
+      dist.set(start, 0);
+      const open = [start];
+      while (open.length) {
+        open.sort((x, y) => dist.get(x) - dist.get(y));
+        const a = open.shift();
+        if (seen.has(a)) continue;
+        seen.add(a);
+        if (from.has(a)) {
+          const b = from.get(a);
           tree.get(a).push(b);
           tree.get(b).push(a);
-          treeKeys.add(`${Math.min(a, b)}-${Math.max(a, b)}`);
-          queue.push(b);
+          treeKeys.add(key(a, b));
+        }
+        adj.get(a).forEach((b) => {
+          const d = dist.get(a) + weight.get(key(a, b));
+          if (!seen.has(b) && d < (dist.get(b) ?? Infinity)) { dist.set(b, d); from.set(b, a); open.push(b); }
         });
       }
     });
+    // From a root, a loop opens where it rejoins at its farthest junction
+    // (J: the Conflans route keeps Limay and merges at Mantes Station).
+    if (root != null) {
+      adj.forEach((next, u) => next.forEach((v) => {
+        if (u >= v || treeKeys.has(key(u, v))) return;
+        const up = (id) => { const out = []; for (let x = id; x != null; x = from.get(x)) out.push(x); return out; };
+        const [pu, pv] = [up(u), up(v)];
+        const top = pu.find((x) => pv.includes(x));
+        const cycle = [...pu.slice(0, pu.indexOf(top)), ...pv.slice(0, pv.indexOf(top))];
+        const joins = cycle.filter((x) => adj.get(x).length > 2).sort((x, y) => dist.get(y) - dist.get(x));
+        const junction = joins[0];
+        const child = cycle.find((x) => from.get(x) === junction);
+        if (junction == null || child == null) return;
+        tree.set(junction, tree.get(junction).filter((x) => x !== child));
+        tree.set(child, tree.get(child).filter((x) => x !== junction));
+        treeKeys.delete(key(junction, child));
+        tree.get(u).push(v);
+        tree.get(v).push(u);
+        treeKeys.add(key(u, v));
+      }));
+    }
     const placed = new Set();
     const farthestPath = (start) => {
       const prev = new Map([[start, null]]);
-      const queue = [start];
+      const dist = new Map([[start, 0]]);
+      const stack = [start];
       let last = start;
-      while (queue.length) {
-        last = queue.shift();
-        tree.get(last).forEach((n) => {
-          if (!prev.has(n) && !placed.has(n)) { prev.set(n, last); queue.push(n); }
+      while (stack.length) {
+        const a = stack.pop();
+        if (dist.get(a) > dist.get(last)) last = a;
+        tree.get(a).forEach((n) => {
+          if (prev.has(n) || placed.has(n)) return;
+          prev.set(n, a);
+          dist.set(n, dist.get(a) + weight.get(key(a, n)));
+          stack.push(n);
         });
       }
       const path = [];
@@ -1535,34 +1577,48 @@
           else tail.push(...layoutPath(sub.reverse(), branch));
         });
       };
-      const middle = (path.length - 1) / 2;
+      const middle = root != null ? 0 : (path.length - 1) / 2;
       for (let i = 0; i < middle; i += 1) addBranches(i, true);
       for (let i = path.length - 1; i >= middle; i -= 1) addBranches(i, false);
       return [...head, ...path, ...tail];
     }
     const order = [];
     const index = new Map(ids.map((id, i) => [id, i]));
-    ids.forEach((root) => {
-      if (placed.has(root)) return;
-      const end = farthestPath(root).pop();
-      const trunk = farthestPath(end);
-      if (index.get(trunk[trunk.length - 1]) < index.get(trunk[0])) trunk.reverse();
+    (root != null ? [root, ...ids] : ids).forEach((start) => {
+      if (placed.has(start)) return;
+      let trunk = farthestPath(start);
+      if (start !== root) {
+        trunk = farthestPath(trunk[trunk.length - 1]);
+        if (index.get(trunk[trunk.length - 1]) < index.get(trunk[0])) trunk.reverse();
+      }
       order.push(...layoutPath(trunk, chainParent.push(null) - 1));
     });
-    adj.forEach((next, a) => next.forEach((b) => {
-      if (a >= b || treeKeys.has(`${a}-${b}`)) return;
-      const [ca, cb] = [chainOf.get(a), chainOf.get(b)];
-      if (ca !== cb) links.push([a, b, ca < cb ? a : b]);
-    }));
     const rowOf = new Map(order.map((id, i) => [id, i]));
+    // Loop links: drawn in the branch's own column, or in a column of their own
+    // when that column has the branch's stops in between (J: Limay - Mantes).
+    adj.forEach((next, a) => next.forEach((b) => {
+      if (a >= b || treeKeys.has(key(a, b))) return;
+      const [ca, cb] = [chainOf.get(a), chainOf.get(b)];
+      const bend = ca < cb ? a : b;
+      const owner = bend === a ? b : a;
+      const [lo, hi] = [Math.min(rowOf.get(a), rowOf.get(b)), Math.max(rowOf.get(a), rowOf.get(b))];
+      const between = order.slice(lo + 1, hi).some((id) => chainOf.get(id) === chainOf.get(owner));
+      if (ca === cb || between) links.push([a, b, null, chainParent.push("loop") - 1]);
+      else links.push([a, b, bend]);
+    }));
 
     // Columns: a chain takes the lowest column whose half-rows are free,
     // including where its elbow crosses other columns.
     const spans = chainParent.map(() => ({ halves: [], cross: [] }));
     order.forEach((id, r) => spans[chainOf.get(id)].halves.push(2 * r, 2 * r + 1));
-    links.forEach(([a, b, bend]) => {
+    links.forEach(([a, b, bend, via]) => {
       const lo = Math.min(rowOf.get(a), rowOf.get(b));
       const hi = Math.max(rowOf.get(a), rowOf.get(b));
+      if (via != null) {
+        for (let h = 2 * lo + 1; h <= 2 * hi; h += 1) spans[via].halves.push(h);
+        spans[via].cross.push({ row: lo, chain: chainOf.get(order[lo]) }, { row: hi, chain: chainOf.get(order[hi]) });
+        return;
+      }
       const owner = bend == null ? a : (bend === a ? b : a);
       for (let h = 2 * lo + 1; h <= 2 * hi; h += 1) spans[chainOf.get(owner)].halves.push(h);
       if (bend != null) spans[chainOf.get(owner)].cross.push({ row: rowOf.get(bend), chain: chainOf.get(bend) });
@@ -1571,11 +1627,17 @@
     const occupied = new Map();
     const isFree = (h, c) => !occupied.get(h)?.has(c);
     const occupy = (h, c) => { if (!occupied.has(h)) occupied.set(h, new Set()); occupied.get(h).add(c); };
-    spans.forEach((span, k) => {
+    // Trunks first, then loop columns (kept next to the trunk), then branches.
+    const rank = (k) => (chainParent[k] == null ? 0 : chainParent[k] === "loop" ? 1 : 2);
+    const byRank = spans.map((_, k) => k).sort((x, y) => rank(x) - rank(y) || x - y);
+    const spanRange = (chain, c) => [Math.min(col[chain] ?? c, c), Math.max(col[chain] ?? c, c)];
+    byRank.forEach((k) => {
+      const span = spans[k];
       let c = 0;
       if (chainParent[k] != null) {
         const crossFree = (c) => span.cross.every(({ row, chain }) => {
-          for (let x = Math.min(col[chain], c) + 1; x < Math.max(col[chain], c); x += 1) {
+          const [from, to] = spanRange(chain, c);
+          for (let x = from + 1; x < to; x += 1) {
             if (!isFree(2 * row, x) || !isFree(2 * row + 1, x)) return false;
           }
           return true;
@@ -1588,13 +1650,14 @@
       col[k] = c;
       span.halves.forEach((h) => occupy(h, c));
       span.cross.forEach(({ row, chain }) => {
-        for (let x = Math.min(col[chain], c) + 1; x < Math.max(col[chain], c); x += 1) { occupy(2 * row, x); occupy(2 * row + 1, x); }
+        const [from, to] = spanRange(chain, c);
+        for (let x = from + 1; x < to; x += 1) { occupy(2 * row, x); occupy(2 * row + 1, x); }
       });
     });
     return {
       rows: order.map((id) => ({ id, col: col[chainOf.get(id)] })),
       columns: Math.max(1, ...col.map((c) => c + 1)),
-      links: links.map(([a, b, bend]) => ({ a, b, bend, rowA: rowOf.get(a), rowB: rowOf.get(b) })),
+      links: links.map(([a, b, bend, via]) => ({ a, b, bend, via: via == null ? null : col[via], rowA: rowOf.get(a), rowB: rowOf.get(b) })),
     };
   }
 
@@ -1602,8 +1665,15 @@
   function trackPieces(layout, isDashed) {
     const rows = layout.rows.map(() => ({ bars: [], elbows: [] }));
     const colOfRow = (r) => layout.rows[r].col;
-    layout.links.forEach(({ a, b, bend, rowA, rowB }) => {
+    layout.links.forEach(({ a, b, bend, via, rowA, rowB }) => {
       const dashed = isDashed(a, b);
+      if (via != null) {
+        const [lo, hi] = rowA < rowB ? [rowA, rowB] : [rowB, rowA];
+        rows[lo].elbows.push({ from: colOfRow(lo), to: via, up: false, dashed });
+        for (let r = lo + 1; r < hi; r += 1) rows[r].bars.push({ c: via, half: "full", dashed });
+        rows[hi].elbows.push({ from: colOfRow(hi), to: via, up: true, dashed });
+        return;
+      }
       if (bend == null) {
         const [lo, hi] = rowA < rowB ? [rowA, rowB] : [rowB, rowA];
         const c = colOfRow(lo);
@@ -1641,6 +1711,23 @@
     return `${bars.join("")}${elbows.join("")}<span class="track-dot" style="left:${x(c) - 5.5}px"></span>`;
   }
 
+  // Châtelet - Les Halles on the PDF page; Paris terminals lie within 400pt.
+  const PARIS_CENTRE = [2108, 1320];
+
+  // A Transilien line's Paris terminal (Saint-Lazare, Gare du Nord, ...): its
+  // stop nearest the centre, when that is an end or a junction, not mid-line.
+  function parisTerminal(line) {
+    if (line.type !== "TRAIN") return null;
+    let best = null;
+    let bestDist = 400;
+    line.stations.forEach((id) => {
+      const s = state.stationById.get(id);
+      const d = s && Math.hypot(s.x - PARIS_CENTRE[0], s.y - PARIS_CENTRE[1]);
+      if (s && d < bestDist) { best = id; bestDist = d; }
+    });
+    return best != null && line.adjacency.get(best)?.length !== 2 ? best : null;
+  }
+
   function renderLineDetails(line) {
     // An open line lists its construction extension too (M18, RER E), dashed.
     const extensions = line.extensions.map((id) => state.lineById.get(id));
@@ -1654,6 +1741,7 @@
     const layout = lineTrackLayout(
       stops.map((s) => s.id).filter((id) => state.stationById.has(id)),
       [line, ...extensions].flatMap((l) => l.edges),
+      parisTerminal(line),
     );
     const pieces = trackPieces(layout, (a, b) => extensions.length > 0 && !openEdges.has(edgeKey(a, b)));
     const indent = 26 + (layout.columns - 1) * TRACK_STEP;
